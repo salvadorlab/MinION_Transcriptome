@@ -5,3 +5,4 @@ https://www.frontiersin.org/articles/10.3389/fgene.2020.00211/full#T1
 A comprehensive examination of Nanopore native
 RNA sequencing for characterization of complex
 transcriptomes
+Studying bacterial transcriptomes using RNA-seq
