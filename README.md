@@ -6,3 +6,4 @@
 RNA sequencing for characterization of complex
 transcriptomes
 2) Studying bacterial transcriptomes using RNA-seq
+3) start with tailfinder, make sure if the information given in the data summaries are correct. (especially direct RNA sequencing, is it polyA tailed?)
