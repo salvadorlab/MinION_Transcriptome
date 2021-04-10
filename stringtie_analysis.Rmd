@@ -14,13 +14,12 @@ library(dplyr)
 library(tidyr)
 library(genefilter)
 library(limma)
-library(Glimma)
 library(edgeR)
 library(IsoformSwitchAnalyzeR)
 
-data_dir <- "/Users/rachel/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/stringtie/direct_RNA/"
-dir <-"/Users/rachel/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/"
-ref <- "/Users/rachel/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/reference"
+data_dir <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/stringtie/direct_RNA/"
+dir <-"/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/"
+ref <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/reference"
 ```
 
 # PART I. Isoform Switching Analysis
@@ -36,12 +35,19 @@ stringtie_quant <- importIsoformExpression(
 head(stringtie_quant$abundance,2)
 
 
+```
+### read in sample and condition metadata 
+```{r}
+
 # direct_flair is metadata for the four direct RNA samples, self-generated
 samps <- read.csv(paste(dir, "direct_flair.txt", sep="/"), sep="\t")
 samps$condition <- factor(samps$condition)
 table(samps$condition)
 samps <- samps %>% dplyr::select(-c(X)) %>% dplyr::rename( sampleID = full_name )
+```
 
+### build an IsoformSwitchAnalyze for sownstream analysis
+```{r}
 # import stringtie results into R for downstream analysis
 switchList <- importRdata(
     isoformCountMatrix   = stringtie_quant$counts,
@@ -53,9 +59,8 @@ switchList <- importRdata(
 
 head(switchList$exons,2)
 
-
-
 ```
+
 ### filter transcripts base on expression level and number of isoforms
 ```{r}
 
@@ -74,16 +79,23 @@ switchListFiltered <- preFilter(
 
 # Due to small number of replicates, less than 3, the isoform switc test would be not relevant, we set all q-values to 1, and set downstram qvalue pvalue cutoff to >1 
 switchListFiltered$isoformFeatures$gene_switch_q_value <- 1
-# switchListAnalyzed <- isoformSwitchTestDEXSeq(
-#     switchAnalyzeRlist = switchListFiltered,
-#     reduceToSwitchingGenes=TRUE,
-#     alpha=0.05
-# )
+switchListAnalyzed <- isoformSwitchTestDEXSeq(
+    switchAnalyzeRlist = switchListFiltered,
+    reduceToSwitchingGenes=FALSE,
+    alpha=1
+)
 
 extractSwitchSummary(switchListAnalyzed, alpha =1.1) # 
 ```
 
+```{r}
 
+gtf <- file.path(data_dir,"direct_RNA_stringtie.denov.merged.gtf")
+
+addORFfromGTF(switchListFiltered, gtf)
+analyzeNovelIsoformORF(switchListFiltered)
+
+```
 ## PART II. GENE Expression Analysis
 
 ### 1. Convert stringtie format
@@ -95,11 +107,10 @@ geneCountMatrix <-as.data.frame(extractGeneExpression(
 ))
 
 rownames(geneCountMatrix) <- geneCountMatrix$gene_id
-geneCountMatrix <- geneCountMatrix[-1]
+geneCountMatrix <- geneCountMatrix[-c(1,2)]
 
 range(colSums(geneCountMatrix)/1e6)
 geneCountMatrix
-
 
 ```
 ### set up for DRIMSeq object
@@ -131,7 +142,7 @@ d <- dmTest(d, coef="condition2")
 
 
 # PART III. Ballgown DTU
-
+- code below derived from worlflow below: https://pydupont.github.io/BallGownTuto/Protocol.html
 ```{r}
 
 library(ballgown)
@@ -168,23 +179,30 @@ geneIDs=ballgown::geneIDs(ballgown_data_fil), ballgown_transcript)
 
 results_transcripts <- arrange(ballgown_transcript,pval)
 results_genes <- arrange(ballgown_gene,pval)
-
-subset(ballgown_transcript,ballgown_transcript$qval<0.05)
-subset(ballgown_gene,ballgown_gene$qval<0.05)
+results_transcripts
 ```
 ### visualize ballgown analysis
 ```{r}
 
-tropical= c("darkorange", "dodgerblue", "hotpink",
-"limegreen", "yellow")
 
-palette(tropical)
+fpkm<- texpr(ballgown_data,meas="FPKM")
+
+fpkmDF = as.data.frame(fpkm)
+fpkmDF = log2(fpkmDF+1)# to avoid 0
+head(fpkmDF,2)
+colnames(fpkmDF) <- c("Q29.Copenhageni.2","Q29.Copenhageni.1","Q36.Copenhageni.2","Q36.Copenhageni.1")
+
+fpkm_longer <- as.data.frame(fpkmDF) %>% pivot_longer(c("Q29.Copenhageni.2","Q29.Copenhageni.1","Q36.Copenhageni.2","Q36.Copenhageni.1"),names_to = "samples", values_to = "Log2fold FPKM") %>% mutate(Temperature=sapply(samples,function(x){
+  unlist(strsplit(x,".",fixed = TRUE))[1]
+}))
+
+ggplot(fpkm_longer,aes(x=samples,y=`Log2fold FPKM`))+
+  geom_violin(aes(fill=Temperature))+
+  geom_boxplot(width=0.1)+
+  theme_bw()
 
 
-fpkm = texpr(ballgown_data,meas="FPKM")
-fpkm = log2(fpkm+1)
-boxplot(fpkm,col=as.numeric(metadata_stringtie$condition),las=2,ylab="log2(FPK
-M+1)")
+
 ```
 
 ```{r}
@@ -203,7 +221,7 @@ col=as.numeric(metadata_stringtie$condition))
 
 ```{r}
 
-plotTranscripts(ballgown::geneIDs(ballgown_data)[1032], ballgown_data,
+plotTranscripts(ballgown::geneIDs(ballgown_data)[100], ballgown_data,
 main=c("Gene XIST in sample "), sample=c("Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA"))
 
 ```
@@ -224,6 +242,7 @@ volcano_plot <- function(data){
 volcano_plot(results_genes)
 
 ```
+
 ```{r}
 library(RColorBrewer)
 library(gplots)
@@ -277,21 +296,8 @@ deseq.volcano_plot <- function(data){
 deseq.volcano_plot(deseq.results)
 
 ```
-### reference database
-```{r}
+### EdgeR
 
-library(GenomicFeatures)
-gff <- file.path(ref,"GCF_000007685.1_ASM768v1_genomic.gff")
-txdb.filename <- "GCF_000007685.1_ASM768v1_genomic.sqlite"
-txdb <- makeTxDbFromGFF(gff)
-saveDb(txdb, txdb.filename)
-
-txdb <- loadDb(txdb.filename)
-txdf <- select(txdb, keys(txdb, "GENEID"), "TXNAME", "GENEID")
-tab <- table(txdf$GENEID)
-txdf$ntx <- tab[match(txdf$GENEID, names(tab))]
-txdf
-```
 
 
 ###  
