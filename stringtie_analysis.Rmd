@@ -1,0 +1,299 @@
+---
+title: "salmon_quan_diffExp"
+author: "Rachel Xu"
+date: "4/8/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tximport)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(genefilter)
+library(limma)
+library(Glimma)
+library(edgeR)
+library(IsoformSwitchAnalyzeR)
+
+data_dir <- "/Users/rachel/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/stringtie/direct_RNA/"
+dir <-"/Users/rachel/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/"
+ref <- "/Users/rachel/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/reference"
+```
+
+# PART I. Isoform Switching Analysis
+
+### 1) read in stringtie output
+```{r}
+
+# Read in stringtie results
+stringtie_quant <- importIsoformExpression(
+    parentDir = data_dir, readLength = 10000
+)
+
+head(stringtie_quant$abundance,2)
+
+
+# direct_flair is metadata for the four direct RNA samples, self-generated
+samps <- read.csv(paste(dir, "direct_flair.txt", sep="/"), sep="\t")
+samps$condition <- factor(samps$condition)
+table(samps$condition)
+samps <- samps %>% dplyr::select(-c(X)) %>% dplyr::rename( sampleID = full_name )
+
+# import stringtie results into R for downstream analysis
+switchList <- importRdata(
+    isoformCountMatrix   = stringtie_quant$counts,
+    isoformRepExpression = stringtie_quant$abundance,
+    designMatrix         = samps, # sample annotations
+    isoformExonAnnoation =paste0(data_dir,"direct_RNA_gff.annotated.gtf") ,# isoform annotations (stringtie output)
+    showProgress = FALSE
+)
+
+head(switchList$exons,2)
+
+
+
+```
+### filter transcripts base on expression level and number of isoforms
+```{r}
+
+switchListFiltered <- preFilter(
+    switchAnalyzeRlist = switchList,
+    geneExpressionCutoff = 1,
+    isoformExpressionCutoff =0,
+    removeSingleIsoformGenes = TRUE
+)
+
+
+```
+
+### Using DEXSeq to perform isoform switching test
+```{r}
+
+# Due to small number of replicates, less than 3, the isoform switc test would be not relevant, we set all q-values to 1, and set downstram qvalue pvalue cutoff to >1 
+switchListFiltered$isoformFeatures$gene_switch_q_value <- 1
+# switchListAnalyzed <- isoformSwitchTestDEXSeq(
+#     switchAnalyzeRlist = switchListFiltered,
+#     reduceToSwitchingGenes=TRUE,
+#     alpha=0.05
+# )
+
+extractSwitchSummary(switchListAnalyzed, alpha =1.1) # 
+```
+
+
+## PART II. GENE Expression Analysis
+
+### 1. Convert stringtie format
+```{r}
+
+geneCountMatrix <-as.data.frame(extractGeneExpression(
+    switchList,
+    extractCounts = TRUE # set to FALSE for abundances. TRUE for count
+))
+
+rownames(geneCountMatrix) <- geneCountMatrix$gene_id
+geneCountMatrix <- geneCountMatrix[-1]
+
+range(colSums(geneCountMatrix)/1e6)
+geneCountMatrix
+
+
+```
+### set up for DRIMSeq object
+```{r}
+
+# reformat count matrix for drimseq analysis
+# function dmDSdata requires "sample_id" column, "gene_id", and "feature_id"
+geneCountMatrix <- samps  %>% dplyr::rename( sample_id = sampleID ) 
+geneCountMatrix$gene_id <- factor(rownames(geneCountMatrix))
+geneCountMatrix$feature_id <- factor(rownames(geneCountMatrix))
+geneCountMatrix$gene_id
+
+
+library(DRIMSeq)
+d <- dmDSdata(counts=geneCountMatrix, samples=samps)
+geneCountMatrix
+methods(class=class(d)) # all the methods corresponds with the dmDSdata object
+
+design_full <- model.matrix(~condition, data=DRIMSeq::samples(d))
+colnames(design_full)
+
+set.seed(1)
+system.time({
+d <- dmPrecision(d, design=design_full)
+d <- dmFit(d, design=design_full)
+d <- dmTest(d, coef="condition2")
+})
+```
+
+
+# PART III. Ballgown DTU
+
+```{r}
+
+library(ballgown)
+metadata_stringtie <-read.csv(paste(dir, "direct_flair.txt", sep="/"), sep="\t")
+metadata_stringtie <- metadata_stringtie[,-2]
+metadata_stringtie
+
+stringtie_samples<- c(
+"Q29_Copenhageni_Basecalled-June_11_2020_Repeat_Direct-RNA",
+"Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA",
+"Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA",
+"Q36_Copenhageni_Basecalled_May_31_2020_Direct-RNA")
+
+stringtie_folders <- file.path(dir,"stringtie","direct_RNA", stringtie_samples)
+ballgown_data <- ballgown(samples = stringtie_folders,
+pData=metadata_stringtie)
+
+ballgown_data_fil = subset(ballgown_data,"rowVars(texpr(ballgown_data)) >
+1",genomesubset=TRUE)
+
+ballgown_data_fil
+
+ballgown_transcript <- stattest(ballgown_data_fil,feature="transcript", covariate = "condition", getFC=TRUE,
+meas="FPKM")
+
+ballgown_gene <- stattest(ballgown_data_fil, feature="gene",
+covariate="condition", getFC=TRUE,
+meas="FPKM")
+
+ballgown_transcript <- 
+data.frame(geneNames=ballgown::geneNames(ballgown_data_fil),
+geneIDs=ballgown::geneIDs(ballgown_data_fil), ballgown_transcript)
+
+
+results_transcripts <- arrange(ballgown_transcript,pval)
+results_genes <- arrange(ballgown_gene,pval)
+
+subset(ballgown_transcript,ballgown_transcript$qval<0.05)
+subset(ballgown_gene,ballgown_gene$qval<0.05)
+```
+### visualize ballgown analysis
+```{r}
+
+tropical= c("darkorange", "dodgerblue", "hotpink",
+"limegreen", "yellow")
+
+palette(tropical)
+
+
+fpkm = texpr(ballgown_data,meas="FPKM")
+fpkm = log2(fpkm+1)
+boxplot(fpkm,col=as.numeric(metadata_stringtie$condition),las=2,ylab="log2(FPK
+M+1)")
+```
+
+```{r}
+
+ballgown::transcriptNames(ballgown_data)[1]
+ballgown::geneNames(ballgown_data)[1]
+
+plot(fpkm[1,] ~ metadata_stringtie$condition, border=c(1,2),
+main=paste(ballgown::geneNames(ballgown_data)[1]," : ",
+ballgown::transcriptNames(ballgown_data)[1]), pch=19, xlab="Temperature",
+ylab="log2(FPKM+1)",xlim=10)
+
+points(fpkm[5,] ~ jitter(as.numeric(metadata_stringtie$condition)),
+col=as.numeric(metadata_stringtie$condition))
+```
+
+```{r}
+
+plotTranscripts(ballgown::geneIDs(ballgown_data)[1032], ballgown_data,
+main=c("Gene XIST in sample "), sample=c("Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA"))
+
+```
+
+
+```{r}
+results_transcripts$logFC <- log2(results_transcripts$fc)
+results_genes$logFC <- log2(results_genes$fc)
+
+volcano_plot <- function(data){
+  logfc.threshold <- 1
+  with(data, plot(logFC, -log10(qval), pch=20, main="Volcano plot"))
+  with(subset(data, qval<.05 ), points(logFC, -log10(qval), pch=20, col="red"))
+  with(subset(data, abs(logFC)>logfc.threshold), points(logFC, -log10(qval), pch=20, col="orange"))
+  with(subset(data, qval<.05 & abs(logFC)>logfc.threshold), points(logFC, -log10(qval), pch=20, col="green"))
+}
+
+volcano_plot(results_genes)
+
+```
+```{r}
+library(RColorBrewer)
+library(gplots)
+my_palette <- colorRampPalette(c("green", "yellow", "red"))(n = 299)
+mat_data <- data.matrix(fpkm)
+heatmap.2(mat_data,
+  main = "FPKM",
+  notecol="black",
+  # density.info="none",
+  trace="none",
+  margins =c(12,9),
+  col=my_palette,
+  # breaks=col_breaks,
+  dendrogram="both")
+
+```
+
+## Ballgown with DESEQ
+
+### results obtained using prepDE.py3
+```{r}
+library(DESeq2)
+counts <- read.csv(paste0(data_dir,"gene_count_matrix.csv"), row.names = 1)
+
+condition <- as.factor(metadata_stringtie$condition )
+
+sample_names <- as.vector(metadata_stringtie$full_name )
+
+coldata <- data.frame(row.names=sample_names, temperature = condition)
+
+ballgown_data.deseq <- DESeqDataSetFromMatrix(counts, coldata, design=~ temperature)
+
+
+deseq <- DESeq(ballgown_data.deseq)
+deseq.results <- DESeq2::results(deseq)
+deseq.results<-deseq.results[order(deseq.results$padj),]
+
+deseq.results
+```
+
+```{r}
+
+deseq.volcano_plot <- function(data){
+  logfc.threshold <- 1
+  with(data, plot(log2FoldChange, -log10(padj), pch=20, main="Volcano plot"))
+  with(subset(data, padj<.05 ), points(log2FoldChange, -log10(padj), pch=20, col="red"))
+  with(subset(data, abs(log2FoldChange)>logfc.threshold), points(log2FoldChange, -log10(padj), pch=20, col="orange"))
+  with(subset(data, padj<.05 & abs(log2FoldChange)>logfc.threshold), points(log2FoldChange, -log10(padj), pch=20, col="green"))
+}
+
+deseq.volcano_plot(deseq.results)
+
+```
+### reference database
+```{r}
+
+library(GenomicFeatures)
+gff <- file.path(ref,"GCF_000007685.1_ASM768v1_genomic.gff")
+txdb.filename <- "GCF_000007685.1_ASM768v1_genomic.sqlite"
+txdb <- makeTxDbFromGFF(gff)
+saveDb(txdb, txdb.filename)
+
+txdb <- loadDb(txdb.filename)
+txdf <- select(txdb, keys(txdb, "GENEID"), "TXNAME", "GENEID")
+tab <- table(txdf$GENEID)
+txdf$ntx <- tab[match(txdf$GENEID, names(tab))]
+txdf
+```
+
+
+###  
+
+
