@@ -1,5 +1,5 @@
 ---
-title: "salmon_quan_diffExp"
+title: "stringtie_quan_diffExp"
 author: "Rachel Xu"
 date: "4/8/2021"
 output: html_document
@@ -17,9 +17,11 @@ library(limma)
 library(edgeR)
 library(IsoformSwitchAnalyzeR)
 
-data_dir <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/stringtie/direct_RNA/"
-dir <-"/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/"
-ref <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/reference"
+user <- "rachel"
+
+data_dir <- paste0(paste0("/Users/",user),"/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/stringtie/direct_RNA/")
+dir <-paste0(paste0("/Users/",user),"/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/")
+ref <- paste0(paste0("/Users/",user),"/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/reference/")
 ```
 
 # PART I. Isoform Switching Analysis
@@ -96,52 +98,10 @@ addORFfromGTF(switchListFiltered, gtf)
 analyzeNovelIsoformORF(switchListFiltered)
 
 ```
-## PART II. GENE Expression Analysis
-
-### 1. Convert stringtie format
-```{r}
-
-geneCountMatrix <-as.data.frame(extractGeneExpression(
-    switchList,
-    extractCounts = TRUE # set to FALSE for abundances. TRUE for count
-))
-
-rownames(geneCountMatrix) <- geneCountMatrix$gene_id
-geneCountMatrix <- geneCountMatrix[-c(1,2)]
-
-range(colSums(geneCountMatrix)/1e6)
-geneCountMatrix
-
-```
-### set up for DRIMSeq object
-```{r}
-
-# reformat count matrix for drimseq analysis
-# function dmDSdata requires "sample_id" column, "gene_id", and "feature_id"
-geneCountMatrix <- samps  %>% dplyr::rename( sample_id = sampleID ) 
-geneCountMatrix$gene_id <- factor(rownames(geneCountMatrix))
-geneCountMatrix$feature_id <- factor(rownames(geneCountMatrix))
-geneCountMatrix$gene_id
 
 
-library(DRIMSeq)
-d <- dmDSdata(counts=geneCountMatrix, samples=samps)
-geneCountMatrix
-methods(class=class(d)) # all the methods corresponds with the dmDSdata object
 
-design_full <- model.matrix(~condition, data=DRIMSeq::samples(d))
-colnames(design_full)
-
-set.seed(1)
-system.time({
-d <- dmPrecision(d, design=design_full)
-d <- dmFit(d, design=design_full)
-d <- dmTest(d, coef="condition2")
-})
-```
-
-
-# PART III. Ballgown DTU
+# PART II. Ballgown DTU
 - code below derived from worlflow below: https://pydupont.github.io/BallGownTuto/Protocol.html
 ```{r}
 
@@ -163,30 +123,22 @@ pData=metadata_stringtie)
 ballgown_data_fil = subset(ballgown_data,"rowVars(texpr(ballgown_data)) >
 1",genomesubset=TRUE)
 
-ballgown_data_fil
+# 
+# ballgown_transcript <- 
+# data.frame(geneNames=ballgown::geneNames(ballgown_data_fil),
+# geneIDs=ballgown::geneIDs(ballgown_data_fil), ballgown_transcript)
+# 
+# 
+# results_transcripts <- arrange(ballgown_transcript,pval)
+# results_genes <- arrange(ballgown_gene,pval)
 
-ballgown_transcript <- stattest(ballgown_data_fil,feature="transcript", covariate = "condition", getFC=TRUE,
-meas="FPKM")
-
-ballgown_gene <- stattest(ballgown_data_fil, feature="gene",
-covariate="condition", getFC=TRUE,
-meas="FPKM")
-
-ballgown_transcript <- 
-data.frame(geneNames=ballgown::geneNames(ballgown_data_fil),
-geneIDs=ballgown::geneIDs(ballgown_data_fil), ballgown_transcript)
-
-
-results_transcripts <- arrange(ballgown_transcript,pval)
-results_genes <- arrange(ballgown_gene,pval)
-results_transcripts
 ```
 ### visualize ballgown analysis
 ```{r}
 
 
-fpkm<- texpr(ballgown_data,meas="FPKM")
-
+fpkm<- texpr(ballgown_data,meas="all")
+fpkm
 fpkmDF = as.data.frame(fpkm)
 fpkmDF = log2(fpkmDF+1)# to avoid 0
 head(fpkmDF,2)
@@ -205,62 +157,17 @@ ggplot(fpkm_longer,aes(x=samples,y=`Log2fold FPKM`))+
 
 ```
 
-```{r}
-
-ballgown::transcriptNames(ballgown_data)[1]
-ballgown::geneNames(ballgown_data)[1]
-
-plot(fpkm[1,] ~ metadata_stringtie$condition, border=c(1,2),
-main=paste(ballgown::geneNames(ballgown_data)[1]," : ",
-ballgown::transcriptNames(ballgown_data)[1]), pch=19, xlab="Temperature",
-ylab="log2(FPKM+1)",xlim=10)
-
-points(fpkm[5,] ~ jitter(as.numeric(metadata_stringtie$condition)),
-col=as.numeric(metadata_stringtie$condition))
-```
 
 ```{r}
 
-plotTranscripts(ballgown::geneIDs(ballgown_data)[100], ballgown_data,
+plotTranscripts(ballgown::geneIDs(ballgown_data)[5], ballgown_data,
 main=c("Gene XIST in sample "), sample=c("Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA"))
 
 ```
 
 
-```{r}
-results_transcripts$logFC <- log2(results_transcripts$fc)
-results_genes$logFC <- log2(results_genes$fc)
-
-volcano_plot <- function(data){
-  logfc.threshold <- 1
-  with(data, plot(logFC, -log10(qval), pch=20, main="Volcano plot"))
-  with(subset(data, qval<.05 ), points(logFC, -log10(qval), pch=20, col="red"))
-  with(subset(data, abs(logFC)>logfc.threshold), points(logFC, -log10(qval), pch=20, col="orange"))
-  with(subset(data, qval<.05 & abs(logFC)>logfc.threshold), points(logFC, -log10(qval), pch=20, col="green"))
-}
-
-volcano_plot(results_genes)
-
-```
-
-```{r}
-library(RColorBrewer)
-library(gplots)
-my_palette <- colorRampPalette(c("green", "yellow", "red"))(n = 299)
-mat_data <- data.matrix(fpkm)
-heatmap.2(mat_data,
-  main = "FPKM",
-  notecol="black",
-  # density.info="none",
-  trace="none",
-  margins =c(12,9),
-  col=my_palette,
-  # breaks=col_breaks,
-  dendrogram="both")
-
-```
-
-## Ballgown with DESEQ
+##  DESEQ
+http://www.bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html
 
 ### results obtained using prepDE.py3
 ```{r}
@@ -280,26 +187,164 @@ deseq <- DESeq(ballgown_data.deseq)
 deseq.results <- DESeq2::results(deseq)
 deseq.results<-deseq.results[order(deseq.results$padj),]
 
-deseq.results
+# length(deseq.results[deseq.results$pvalue <0.05])
+# deseq.results$pvalue <0.05
+head(deseq.results,10)
+```
+### shrunken log fold change (LFC) to reduce the effect of dispersion
+```{r}
+resultsNames(deseq)
+res_lfcShrink <- lfcShrink(deseq,coef = 2, type="apeglm")
+res_lfcShrink<-res_lfcShrink[order(deseq.results$padj),]
+sum(res_lfcShrink$padj < 0.05 , na.rm=TRUE) # 479 genes with differential expression > 0.05
+```
+
+```{r}
+# read DESeq results in to a data frame
+deseq_stringtieDF <- as.data.frame(res_lfcShrink)
+
+# add a column for differential expression based on p value and log fold change
+deseq_stringtieDF$diffexpressed <- "Not differentially expressed"
+
+# if with p-value < 0.05 and log2fold change > abs(1), label either up or down regulated 
+deseq_stringtieDF$diffexpressed[deseq_stringtieDF$log2FoldChange > 1 & deseq_stringtieDF$pvalue < 0.05] <- "Upregulated"
+deseq_stringtieDF$diffexpressed[deseq_stringtieDF$log2FoldChange < -1 & deseq_stringtieDF$pvalue < 0.05] <- "Downregulated"
+
+# factor so legend is ordered
+deseq_stringtieDF$diffexpressed <- factor(deseq_stringtieDF$diffexpressed, levels=c("Upregulated", "Downregulated", "Not differentially expressed"))
+head(deseq_stringtieDF)
+
+# all transcript with associated gene names
+deseq_stringtieDF$gene_symbol <- sapply(rownames(deseq_stringtieDF), function(x){
+  unlist(strsplit(x, "|", fixed = TRUE))[2]
+})
+deseq_stringtieDF$delabel <- NA
+deseq_stringtieDF$delabel[deseq_stringtieDF$diffexpressed != "Not differentially expressed"] <- deseq_stringtieDF$gene_symbol[deseq_stringtieDF$diffexpressed != "Not differentially expressed"]
+
+
+library(ggrepel)
+ggplot(deseq_stringtieDF, aes(x=log2FoldChange,y = -log10(padj)))+
+  geom_point(aes(color =diffexpressed))+
+  theme_bw()+
+  geom_vline(xintercept=c(-1,1), col="gray",linetype="dashed")+
+  geom_hline(yintercept=-log10(0.05), col="gray",linetype="dashed")+
+  scale_color_manual(values=c("orange", "blue", "black"))+
+  geom_text_repel(aes(label=delabel))
+```
+```{r}
+
+# plotMA(res_lfcShrink)
+
+library(ggplot2)
+library(scales) # needed for oob parameter
+library(viridis)
+
+# Coerce to a data frame
+deseq2ResDF <- as.data.frame(res_lfcShrink)
+
+# Examine this data frame
+head(deseq2ResDF)
+
+# Set a boolean column for significance
+deseq2ResDF$significant <- ifelse(deseq2ResDF$padj < .05 & (deseq2ResDF$log2FoldChange > 1 | deseq2ResDF$log2FoldChange < -1), "Significant",NA)
+deseq2ResDF$gene_symbol <- sapply(rownames(deseq2ResDF), function(x){
+  unlist(strsplit(x, "|", fixed = TRUE))[2]
+})
+deseq2ResDF$delabel <- NA
+deseq2ResDF$delabel[!is.na(deseq2ResDF$significant)] <- deseq2ResDF$gene_symbol[!is.na(deseq2ResDF$significant)]
+deseq2ResDF
+
+# Plot the results similar to DEseq2
+ggplot(deseq2ResDF, aes(baseMean, log2FoldChange, colour=significant)) + 
+  geom_point(size=1) + 
+  scale_y_continuous(limits=c(-3, 3)) +
+  scale_x_log10() + 
+  geom_hline(yintercept = 0, colour="gray",size=1.5) + 
+  geom_vline(xintercept=100, col="gray",linetype="dashed")+
+  labs(x="mean of normalized counts", y="log fold change")+
+  geom_text_repel(aes(label=delabel),color="black")+
+  theme_bw()
+
+
+```
+### heatmap
+```{r}
+
+# transforms the count data to the log2 scale in a way which minimizes differences between samples for rows with small counts, and which normalizes with respect to library size.
+rld <- rlog(ballgown_data.deseq, blind=FALSE) # input is stringite output
+
+# assay is a summarizedExperiment object, matrix like
+topVarGenes <- head(order(rowVars(assay(rld)), decreasing=T),50)# top 100 genes' variances 
+matrix <- assay(rld)[ topVarGenes, ] # extract genes with top variation aceoss samples
+matrix <- matrix - rowMeans(matrix)
+colnames(matrix)<- c("Q29.2","Q29.1","Q36.2","Q36.1")
+# select the 'contrast' you want
+annotation_data <- data.frame("samples"=c(rep("Q29",2), rep("Q36",2)))
+rownames(annotation_data) <- colnames(matrix)
+annoCol <- list(category = c("Q29","Q36"))
+
+pheatmap(matrix, annotation_col = annotation_data, annotation_colors =annoCol, angle_col=45,fontsize_row=5)
+```
+
+### EdgeR
+
+### results obtained using prepDE.py3
+```{r}
+library(edgeR)
+counts <- read.csv(paste0(data_dir,"gene_count_matrix.csv"), row.names = 1)
+group <- factor(c("Q29","Q29","Q36","Q36"))
+y <- DGEList(counts=counts,group=group)
+keep <- filterByExpr(y) # keeps rows that have worthwhile counts in a minumum numberof samples
+y <- y[keep,,keep.lib.sizes=FALSE]
+y <- calcNormFactors(y)
+design <- model.matrix(~group)
+y <- estimateDisp(y,design)
+fit <- glmQLFit(y,design)
+qlf <- glmQLFTest(fit,coef=2)
+topTags(qlf,1000)
+
+summary(qlf)
+qlf$table$FDR <- p.adjust(qlf$table$PValue, method="BH")
+head(qlf$table)
+
 ```
 
 ```{r}
 
-deseq.volcano_plot <- function(data){
-  logfc.threshold <- 1
-  with(data, plot(log2FoldChange, -log10(padj), pch=20, main="Volcano plot"))
-  with(subset(data, padj<.05 ), points(log2FoldChange, -log10(padj), pch=20, col="red"))
-  with(subset(data, abs(log2FoldChange)>logfc.threshold), points(log2FoldChange, -log10(padj), pch=20, col="orange"))
-  with(subset(data, padj<.05 & abs(log2FoldChange)>logfc.threshold), points(log2FoldChange, -log10(padj), pch=20, col="green"))
-}
+# read DESeq results in to a data frame
+edgeR_stringtieDF <- as.data.frame(qlf)
+# write.csv(res_lfcShrink_stringtie,paste0(dir,"deseq_stringtieDF.csv"))
+# add a column for differential expression based on p value and log fold change
+edgeR_stringtieDF$diffexpressed <- "Not differentially expressed"
 
-deseq.volcano_plot(deseq.results)
+# if with p-value < 0.05 and log2fold change > abs(1), label either up or down regulated 
+edgeR_stringtieDF$diffexpressed[edgeR_stringtieDF$logFC >= 1 & edgeR_stringtieDF$FDR < 0.05] <- "Upregulated"
+edgeR_stringtieDF$diffexpressed[edgeR_stringtieDF$logFC <= -1 & edgeR_stringtieDF$FDR < 0.05] <- "Downregulated"
+edgeR_stringtieDF
+# factor so legend is ordered
+edgeR_stringtieDF$diffexpressed <- factor(edgeR_stringtieDF$diffexpressed, levels=c("Upregulated", "Downregulated", "Not differentially expressed"))
+edgeR_stringtieDF
+
+# all transcript with associated gene names
+edgeR_stringtieDF$gene_symbol <- sapply(rownames(edgeR_stringtieDF), function(x){
+  unlist(strsplit(x, "|", fixed = TRUE))[2]
+})
+
+edgeR_stringtieDF$delabel <- NA
+edgeR_stringtieDF$delabel[edgeR_stringtieDF$diffexpressed != "Not differentially expressed"] <- edgeR_stringtieDF$gene_symbol[edgeR_stringtieDF$diffexpressed != "Not differentially expressed"]
+edgeR_stringtieDF
+edgeR_stringtieDF[!is.na(edgeR_stringtieDF$delabel),]
+library(ggrepel)
+ggplot(edgeR_stringtieDF, aes(x=logFC,y = -log10(FDR)))+
+  geom_point(aes(color =diffexpressed))+
+  theme_bw()+
+  geom_vline(xintercept=c(-1,1), col="gray",linetype="dashed")+
+  geom_hline(yintercept=-log10(0.05), col="gray",linetype="dashed")+
+  scale_color_manual(values=c("orange", "blue", "black"))+
+  geom_text_repel(aes(label=delabel))
 
 ```
-### EdgeR
 
-
-
-###  
+ 
 
 

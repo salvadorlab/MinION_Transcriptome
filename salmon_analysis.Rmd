@@ -19,9 +19,12 @@ library(IsoformSwitchAnalyzeR)
 
 # list samples, read int metadata
 ```{r}
-dir <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results"
-salmon_dir <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/salmon/"
-ref <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/reference"
+user <- "rachel"
+
+
+dir <- paste0(paste0("/Users/",user),"/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/")
+salmon_dir <- paste0(paste0("/Users/",user),"/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/salmon")
+ref <- paste0(paste0("/Users/",user),"/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/reference/")
 # all samples
 salmon_samples<- c(
 "Q29_Copenhageni_Basecalled-June_11_2020_Repeat_Direct-RNA",
@@ -35,29 +38,34 @@ direct_rna_meta <- read.csv(paste(dir, "direct_flair.txt", sep="/"), sep="\t")
 
 ```
 
+# read eggnog-mapper annotation
 ```{r}
-# list all files
-salmonfiles <- paste0(salmon_dir, "align_quant/","directRNA/")
-salmonQuant <- importIsoformExpression(
-    parentDir = as.vector(salmonfiles),
-    ignoreAfterBar = FALSE,
-)
-myDesign <- direct_rna_meta %>% mutate(sampleID = paste0(full_name,"_quant")) %>% dplyr::select(-c(X, full_name,batch)) 
-myDesign$condition <- factor(myDesign$condition)
-gff <- file.path(ref,"GCF_000007685.1_ASM768v1_genomic.gtf")
-fasta <- file.path(ref,"GCF_000007685.1_ASM768v1_transcriptome.gffread.fasta")
-aSwitchList <- importRdata(
-    isoformCountMatrix   = salmonQuant$counts,
-    isoformRepExpression = salmonQuant$abundance,
-    designMatrix         = myDesign,
-    isoformExonAnnoation = gff,
-    isoformNtFasta       = fasta,
-    ignoreAfterBar = FALSE,
-    showProgress = FALSE
-)
-salmonQuant$counts
-myDesign
+
+egg_nog <- read.csv(paste0(ref, "GCF_000007685.gffread.eggnogmapper.tsv"),sep="\t",skip=4,header=FALSE)
+
+egg_nog_genename <- egg_nog %>% dplyr::select(c(V1,V6))
+colnames(egg_nog_genename) <- c("salmon_tax", "gene_name")
+head(egg_nog_genename,2)
 ```
+# format gtf file
+```{r}
+gtf_df <- read.csv(paste0(ref,"GCF_000007685.1_ASM768v1_genomic.gtf"),skip=5,sep=c("\t"),header = FALSE) %>% subset(V3 == "gene")
+# head(gtf_df)
+
+tx2gene <- gtf_df %>% mutate(salmon_tax = sapply(V9, function(x){
+    v9=trimws(unlist(strsplit(x,";")))
+    id=unlist(strsplit(v9[1]," ",fixed=TRUE))[2]
+    id
+})) %>% mutate(gene_name=sapply(V9, function(x){
+    v9=trimws(unlist(strsplit(x,";")))
+    id=unlist(strsplit(v9[1]," ",fixed=TRUE))[2]
+    current=unlist(strsplit(v9[4]," ",fixed=TRUE))
+    gene_name=ifelse(current[1]=="gene",current[2],NA)
+    gene_name
+})) %>% dplyr::select(c("salmon_tax","gene_name"))
+
+```
+
 
 # read in salmon files
 ```{r}
@@ -74,57 +82,259 @@ direct_rna_metadata <- cbind(direct_rna_meta, files=salmonfiles, stringsAsFactor
 direct_rna_metadata$condition <- factor(direct_rna_metadata$condition)
 
 ## Import quantifications on the transcript level
-txi <- tximport(salmonfiles, type="salmon", txOut=TRUE,
-                countsFromAbundance="scaledTPM")
+txi <- tximport(salmonfiles, type="salmon", txOut=TRUE,tx2gene = tx2gene)
 # txi
 cts <- txi$counts
 # cts[1:3,1:3]
 cts <- cts[rowSums(cts) > 0,]
-# cts
+rownames(cts) <- sapply(as.character(rownames(cts)),function(x){unlist(strsplit(x,"-",fixed=TRUE))[2]})
+head(cts,2)
 ```
 
+```{r}
+direct_rna_meta$samples<- c("Q29.2","Q29.1","Q36.2","Q36.1")
+salmon_direct_meta <- direct_rna_meta[,c("samples","condition")]
+library("DESeq2")
+ddsTxi <- DESeqDataSetFromTximport(txi,
+                                   colData = salmon_direct_meta,
+                                  samples ~ condition)
 
-### reference database
+
+
+salmon.deseq <- DESeq(ddsTxi)
+
+deseq.results <- DESeq2::results(salmon.deseq)
+deseq.results<-deseq.results[order(deseq.results$padj),]
+
+sum(deseq.results$padj < 0.05 , na.rm=TRUE)#61
+head(deseq.results,2)
+```
+
 ```{r}
 
-library(GenomicFeatures)
-gff <- file.path(ref,"GCF_000007685.1_ASM768v1_genomic.gff")
-txdb.filename <- "GCF_000007685.1_ASM768v1_genomic.sqlite"
-txdb <- makeTxDbFromGFF(gff,format="gff")
-saveDb(txdb, txdb.filename)
-
-txdb <- loadDb(txdb.filename)
-txdf <- select(txdb, keys(txdb, "GENEID"), "TXNAME", "GENEID")
-tab <- table(txdf$GENEID)
-txdf$ntx <- tab[match(txdf$GENEID, names(tab))]
-
-head(txdf,2)
-
+resultsNames(salmon.deseq)
+res_lfcShrink_salmon <- lfcShrink(salmon.deseq,coef = 2, type="apeglm")
+sum(res_lfcShrink_salmon$padj < 0.05 , na.rm=TRUE)
 
 ```
 
-
-## DRIMSeq
 ```{r}
-txdf
+# read DESeq results in to a data frame
+deseq_salmonDF <- as.data.frame(res_lfcShrink_salmon)
+# write.csv(res_lfcShrink_salmon,paste0(dir,"deseq_salmonDF.csv"))
+# add a column for differential expression based on p value and log fold change
+deseq_salmonDF$diffexpressed <- "Not differentially expressed"
 
-rownames(cts) <- cts_rowname
-cts
-txdf <- txdf[match(cts_rowname,txdf$GENEID),]
-all(rownames(cts) == txdf$GENEID)
+# if with p-value < 0.05 and log2fold change > abs(1), label either up or down regulated 
+deseq_salmonDF$diffexpressed[deseq_salmonDF$log2FoldChange >= 1 & deseq_salmonDF$pvalue < 0.05] <- "Upregulated"
+deseq_salmonDF$diffexpressed[deseq_salmonDF$log2FoldChange <= -1 & deseq_salmonDF$pvalue < 0.05] <- "Downregulated"
+deseq_salmonDF
+# factor so legend is ordered
+deseq_salmonDF$diffexpressed <- factor(deseq_salmonDF$diffexpressed, levels=c("Upregulated", "Downregulated", "Not differentially expressed"))
+deseq_salmonDF
 
-rownames(cts) == txdf$GENEID
-
-counts <- data.frame(gene_id=txdf$GENEID, feature_id=txdf$GENEID, cts)
-counts <- counts[!is.na(counts$feature_id),]
+# all transcript with associated gene names
+deseq_salmonDF$salmon_tax <- rownames(deseq_salmonDF)
+deseq_salmonDF
+deseq_salmonDF <- left_join(deseq_salmonDF,egg_nog_genename,by="salmon_tax")
+deseq_salmonDF$delabel <- NA
+deseq_salmonDF$delabel[deseq_salmonDF$diffexpressed != "Not differentially expressed"] <- deseq_salmonDF$gene_name[deseq_salmonDF$diffexpressed != "Not differentially expressed"]
+deseq_salmonDF
+deseq_salmonDF[!is.na(deseq_salmonDF$delabel),]
+library(ggrepel)
+ggplot(deseq_salmonDF, aes(x=log2FoldChange,y = -log10(padj)))+
+  geom_point(aes(color =diffexpressed))+
+  theme_bw()+
+  geom_vline(xintercept=c(-1,1), col="gray",linetype="dashed")+
+  geom_hline(yintercept=-log10(0.05), col="gray",linetype="dashed")+
+  scale_color_manual(values=c("orange", "blue", "black"))+
+  geom_text_repel(aes(label=delabel))
 ```
-### DRIMSeq
+
 ```{r}
-samps <- direct_rna_metadata %>% dplyr::rename(sample_id = full_name)
-colnames(counts) <- c("gene_id","feature_id",samps$sample_id)
-dmDSdata(counts = counts, samples = samps)
+
+# plotMA(res_lfcShrink)
+
+library(ggplot2)
+library(scales) # needed for oob parameter
+library(viridis)
+
+# Coerce to a data frame
+deseq2ResDF <- as.data.frame(res_lfcShrink_salmon)
+
+# Examine this data frame
+head(deseq2ResDF)
+
+# Set a boolean column for significance
+deseq2ResDF$significant <- ifelse(deseq2ResDF$padj < .05, "Significant",NA)
+deseq2ResDF$salmon_tax <- rownames(deseq2ResDF)
+deseq2ResDF <- left_join(deseq2ResDF, egg_nog_genename,by="salmon_tax")
+deseq2ResDF$delabel <- NA
+deseq2ResDF$delabel[!is.na(deseq2ResDF$significant)] <- deseq2ResDF$gene_name[!is.na(deseq2ResDF$significant)]
+deseq2ResDF$delabel[!is.na(deseq2ResDF$significant)]
+# Plot the results similar to DEseq2
+ggplot(deseq2ResDF, aes(log2(baseMean), log2FoldChange, colour=significant)) + 
+  geom_point(size=1) + 
+  geom_hline(yintercept = 0, colour="gray",size=1.5) + 
+  labs(x="mean of normalized counts", y="log fold change")+
+    geom_text_repel(aes(label=delabel),color="black")+
+  theme_bw()
+
+
+```
+
+### heatmap
+```{r}
+library(pheatmap)
+# transforms the count data to the log2 scale in a way which minimizes differences between samples for rows with small counts, and which normalizes with respect to library size.
+rld <- rlog(salmon.deseq, blind=FALSE) # input is stringite output
+
+# assay is a summarizedExperiment object, matrix like
+topVarGenes <- head(order(rowVars(assay(rld)), decreasing=T),50)# top 100 genes' variances 
+matrix <- assay(rld)[ topVarGenes, ] # extract genes with top variation aceoss samples
+which(rownames(matrix) == "gene-LIC_RS02730")
+matrix
+matrix <- matrix - rowMeans(matrix)
+colnames(matrix)<- c("Q29.2","Q29.1","Q36.2","Q36.1")
+
+gene_id <- as.data.frame(as.character(rownames(matrix)))
+colnames(gene_id) <- "salmon_tax"
+gene_id <- left_join(gene_id,egg_nog_genename, by="salmon_tax")
+gene_id <- gene_id %>% dplyr::mutate(gene_visual=mapply(function(x,y){ifelse(is.na(x), y, paste(y, x,sep="|"))}, gene_name, salmon_tax)) 
+
+rownames(matrix) <- gene_id$gene_visual
+
+# select the 'contrast' you want
+annotation_data <- data.frame("samples"=c(rep("Q29",2), rep("Q36",2)))
+rownames(annotation_data) <- colnames(matrix)
+annoCol <- list(category = c("Q29","Q36"))
+matrix
+pheatmap(matrix, annotation_col = annotation_data, annotation_colors =annoCol, angle_col=45,fontsize_row=5)
+```
+
+### EdgeR
+
+### results obtained using prepDE.py3
+```{r}
+library(edgeR)
+counts <- txi$counts
+group <- factor(c("Q29","Q29","Q36","Q36"),levels=c("Q29","Q36"))
+y <- DGEList(counts=counts,group=group)
+keep <- filterByExpr(y) # keeps rows that have worthwhile counts in a minumum numberof samples
+y <- y[keep,,keep.lib.sizes=FALSE]
+y <- calcNormFactors(y)
+design <- model.matrix(~group)
+y <- estimateDisp(y,design)
+fit <- glmQLFit(y,design)
+qlf <- glmQLFTest(fit,coef=2)
+topTags(qlf)
+
+summary(qlf)
+summary(decideTests(qlf))
+
+
+qlf$table$FDR <- p.adjust(qlf$table$PValue, method="BH")
+head(qlf$table)
+```
+
+```{r}
+
+# read DESeq results in to a data frame
+edgeR_salmonDF <- as.data.frame(qlf)
+# write.csv(res_lfcShrink_salmon,paste0(dir,"deseq_salmonDF.csv"))
+# add a column for differential expression based on p value and log fold change
+edgeR_salmonDF$diffexpressed <- "Not differentially expressed"
+
+# if with p-value < 0.05 and log2fold change > abs(1), label either up or down regulated 
+edgeR_salmonDF$diffexpressed[edgeR_salmonDF$logFC >= 1 & edgeR_salmonDF$FDR < 0.05] <- "Upregulated"
+edgeR_salmonDF$diffexpressed[edgeR_salmonDF$logFC <= -1 & edgeR_salmonDF$FDR < 0.05] <- "Downregulated"
+edgeR_salmonDF
+# factor so legend is ordered
+edgeR_salmonDF$diffexpressed <- factor(edgeR_salmonDF$diffexpressed, levels=c("Upregulated", "Downregulated", "Not differentially expressed"))
+Q29_upregulated_gene <- edgeR_salmonDF %>% subset(diffexpressed == "Upregulated")
+
+# all transcript with associated gene names
+edgeR_salmonDF$salmon_tax <- rownames(edgeR_salmonDF)
+edgeR_salmonDF
+edgeR_salmonDF <- left_join(edgeR_salmonDF,egg_nog_genename,by="salmon_tax")
+edgeR_salmonDF$delabel <- NA
+edgeR_salmonDF$delabel[edgeR_salmonDF$diffexpressed != "Not differentially expressed"] <- edgeR_salmonDF$gene_name[edgeR_salmonDF$diffexpressed != "Not differentially expressed"]
+edgeR_salmonDF
+edgeR_salmonDF[!is.na(edgeR_salmonDF$delabel),]
+library(ggrepel)
+ggplot(edgeR_salmonDF, aes(x=logFC,y = -log10(FDR)))+
+  geom_point(aes(color =diffexpressed))+
+  theme_bw()+
+  geom_vline(xintercept=c(-1,1), col="gray",linetype="dashed")+
+  geom_hline(yintercept=-log10(0.05), col="gray",linetype="dashed")+
+  scale_color_manual(values=c("orange", "blue", "black"))+
+  geom_text_repel(aes(label=delabel))
 
 ```
 
 
 
+```{r}
+
+egg_nog_go <-  egg_nog %>% dplyr::select(c(V1,V7)) %>% dplyr::rename("salmon_tax"=V1,"GO_terms" =V7)
+salmonGoDF<- left_join(Q29_upregulated_gene,egg_nog_go,by="salmon_tax")
+Q29_upregulated_gene
+salmonGoDF
+table(Ontology(unique(unlist(strsplit(salmonGoDF[!is.na(salmonGoDF$GO_terms),]$GO_terms,",")))))
+Ontology(unique(unlist(strsplit(salmonGoDF$GO_terms,","))))
+fry(y, which(is.na(salmonGoDF$GO_terms)))
+which(is.na(salmonGoDF$GO_terms))
+y$counts
+```
+
+```{r}
+
+
+
+library(ggplot2)
+library(scales) # needed for oob parameter
+
+
+# Coerce to a data frame
+edgeR2ResDF <- as.data.frame(qlf)
+
+# Examine this data frame
+head(edgeR2ResDF)
+
+# Set a boolean column for significance
+edgeR2ResDF$significant <- ifelse(edgeR2ResDF$FDR < .05, "Significant",NA)
+edgeR2ResDF$salmon_tax <- rownames(edgeR2ResDF)
+edgeR2ResDF <- left_join(edgeR2ResDF, egg_nog_genename,by="salmon_tax")
+edgeR2ResDF$delabel <- NA
+edgeR2ResDF$delabel[!is.na(edgeR2ResDF$significant)] <- edgeR2ResDF$gene_name[!is.na(edgeR2ResDF$significant)]
+edgeR2ResDF$delabel[!is.na(edgeR2ResDF$significant)]
+# Plot the results similar to edgeR2
+ggplot(edgeR2ResDF, aes(logCPM, logFC, colour=significant)) + 
+  geom_point(size=1) + 
+  scale_y_continuous(limits=c(-3, 3)) +
+  geom_hline(yintercept = 0, colour="gray",size=1.5) + 
+  labs(x="mean of normalized logCPM", y="log fold change")+
+    geom_text_repel(aes(label=delabel),color="black")+
+  theme_bw()
+head(edgeR2ResDF)
+```
+
+
+# GO and KEGG annotation
+
+###GO term
+```{r}
+
+library(GO.db)
+head(egg_nog)
+egg_nog_go <-  egg_nog %>% dplyr::select(c(V1,V7)) %>% dplyr::rename("salmon_tax"=V1,"GO_terms" =V7)
+salmonGoDF<- left_join(edgeR2ResDF,egg_nog_go,by="salmon_tax")
+cyt.go <- salmonGoDF[!is.na(salmonGoDF$GO_terms),]$GO_terms
+head(cyt.go)
+term <- select(GO.db, keys=cyt.go, columns="TERM")
+term
+
+egg_nog_go
+table(Ontology(unique(unlist(strsplit(salmonGoDF$GO_terms,",")))))
+
+```
