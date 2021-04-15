@@ -24,25 +24,33 @@ samples <- c("Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail","Copen
 samp_ab <- c("Cop.NoPolyA","Cop.PolyA", "Cop.Q.NoPolyA","Q29.Cop.DRNA","Q36.Cop.DRNA")
 
 total.reads<- data.frame(sample=c(), total.reads=c())
+
 # map to genome
 mapped.reads.genome <- data.frame(sample=c(), mapped.reads=c())
 # map to transcriptome (set minimap -p, min secondary-to-primary score ratio, [0.99])
 mapped.reads.trans <- data.frame(sample=c(), mapped.reads=c())
+
 # samtools flagstats 
 mapped.second.genome <- data.frame(sample=c(), secondary.alignment=c())
 mapped.supp.genome <- data.frame(sample=c(), supplementary.alignment=c())
 mapped.second.trans <- data.frame(sample=c(), secondary.alignment.trans=c())
 mapped.supp.trans <- data.frame(sample=c(), supplementary.alignment.trans=c())
+
 # total mapped reads/total reads
 mapped.percentage <- data.frame(sample=c(), mapped.percentage=c())
 mapped.percentage.trans <- data.frame(sample=c(), mapped.percentage.trans=c())
+
+
 for (index in 1:length(samples)){
   temp_genome_data <- readLines(file.path(polyapath, "genome_sam_stats", paste0(samples[index],".sam.stats")))
   temp_trans_data <- readLines(file.path(polyapath, "trans_sam_stats", paste0(samples[index],".sam.stats")))
+  
   temp_sn_genome <- grep("^SN",temp_genome_data, value=TRUE)
   temp_sn_trans <- grep("^SN",temp_trans_data, value=TRUE)
+  
   temp_sn_genome <- separate(data.frame(temp_sn_genome),col=1, into=c("ID", "Name","Value"), sep="\t")[,-1]
   temp_sn_trans <- separate(data.frame(temp_sn_trans),col=1, into=c("ID", "Name","Value"), sep="\t")[,-1]
+  
   # following number can alse get from samtools view -c $file.bam/sam -F (samtools bit code)
   # check bit code at: http://broadinstitute.github.io/picard/explain-flags.html
   # -F 2304, all primary reads,excluding reads non-primary aligned and supplementary alignment (but not necessarily mapped)
