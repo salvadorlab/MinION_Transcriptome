@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(knitr)
+# library(knitr)
 library(tidyverse)
 library(reshape2)
 library(gridExtra)
@@ -19,16 +19,18 @@ polyapath <- "/Users/rachel/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/
 # example code
 https://www.biostars.org/p/412621/s
 ```{r}
-samples <- c("Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail","Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_PolyATail", "Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_Qiagen_NoPolyATail","Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA","Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA")
 
-samp_ab <- c("Cop.NoPolyA","Cop.PolyA", "Cop.Q.NoPolyA","Q29.Cop.DRNA","Q36.Cop.DRNA")
+
+samples <- c("Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail","Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_PolyATail", "Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_Qiagen_NoPolyATail","Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA","Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA","Q29_Copenhageni_Basecalled-June_11_2020_Repeat_Direct-RNA", "Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA")
+
+samp_ab <- c("Cop.NoPolyA","Cop.PolyA", "Cop.Q.NoPolyA","Q29.Cop.DRNA","Q36.Cop.DRNA", "Q29.Cop.DRNA.R","Q36.Cop.DRNA.R")
 
 total.reads<- data.frame(sample=c(), total.reads=c())
 
 # map to genome
 mapped.reads.genome <- data.frame(sample=c(), mapped.reads=c())
 # map to transcriptome (set minimap -p, min secondary-to-primary score ratio, [0.99])
-mapped.reads.trans <- data.frame(sample=c(), mapped.reads=c())
+mapped.reads.trans <- data.frame(sample=c(), mapped.reads.trans=c())
 
 # samtools flagstats 
 mapped.second.genome <- data.frame(sample=c(), secondary.alignment=c())
@@ -72,8 +74,7 @@ for (index in 1:length(samples)){
      mapped.percentage.trans <- rbind(mapped.percentage.trans,data.frame(sample=samp_ab[index],mapped.percentage.trans=parse_number(unlist(strsplit(flagstats.trans[5], split=" ", fixed=TRUE))[5])))
 }
 
-temp_sn_genome
-temp_sn_trans
+
 
 # sn <- readLines(file.path(polyapath, "genome_sam_stats", paste0("Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail",".sam.stats")))
 # sn <- grep("^SN",sn, value=TRUE)
@@ -91,8 +92,8 @@ map.stats.combined
 map.stats.longer <- pivot_longer(map.stats.combined, cols = c("total.reads", "mapped.reads.genome", "mapped.reads.trans"), names_to = "primary.alignment.stats", values_to = "Number")
 map.stats.longer$Number <- as.numeric(map.stats.longer$Number)
 map.stats.longer$primary.alignment.stats <- factor(map.stats.longer$primary.alignment.stats, levels = c("total.reads", "mapped.reads.genome", "mapped.reads.trans"))
-map.stats.longer$sample <- factor(map.stats.longer$sample, levels=c("Cop.NoPolyA", "Cop.Q.NoPolyA","Cop.PolyA","Q29.Cop.DRNA","Q36.Cop.DRNA"))
-kable(total.reads, caption="Total Number of Reads")
+map.stats.longer$sample <- factor(map.stats.longer$sample, levels=c("Cop.NoPolyA", "Cop.Q.NoPolyA","Cop.PolyA","Q29.Cop.DRNA","Q36.Cop.DRNA", "Q29.Cop.DRNA.R","Q36.Cop.DRNA.R"))
+# kable(total.reads, caption="Total Number of Reads")
 
 ggplot(map.stats.longer, aes(x= sample, y= Number))+
   geom_bar(stat="identity", position=position_dodge2(padding =0),aes(fill=primary.alignment.stats))+
@@ -107,21 +108,21 @@ ggplot(map.stats.longer, aes(x= sample, y= Number))+
 # plot primary mapped reads (total vs. genome vs. transcriptome)
 ```{r}
 
-map.flag.combined <- merge(merge(merge(mapped.second.genome,mapped.second.trans), merge(mapped.supp.genome,mapped.supp.trans)), map.stats.combined) %>% select(!total.reads)
+map.flag.combined <- merge(merge(merge(mapped.second.genome,mapped.second.trans), merge(mapped.supp.genome,mapped.supp.trans)), map.stats.combined) %>% dplyr::select(!total.reads)
 map.flag.longer <- pivot_longer(map.flag.combined, cols = c(secondary.alignment, secondary.alignment.trans, supplementary.alignment, supplementary.alignment.trans), names_to = "Non-primary.alignment.stats", values_to = "Number")
 map.flag.longer$Number <- as.numeric(map.flag.longer$Number)
 
 map.flag.longer$`Non-primary.alignment.stats` <- factor(map.flag.longer$`Non-primary.alignment.stats`, levels = c("secondary.alignment", "secondary.alignment.trans", "supplementary.alignment", "supplementary.alignment.trans"))
-
-map.flag.longer$Reference <- rep(c("genome", "transcriptome"),10)
-map.flag.longer$align_type <- rep(c(rep("secondary",2),rep("supplementary",2)),5)
+map.flag.longer
+map.flag.longer$Reference <- rep(c("genome", "transcriptome"),14)
+map.flag.longer$align_type <- rep(c(rep("secondary",2),rep("supplementary",2)),7)
 map.flag.longer
 
 proportion <- ifelse(map.flag.longer$Reference == "genome",map.flag.longer$Number/as.numeric(map.flag.longer$mapped.reads.genome), map.flag.longer$Number/as.numeric(map.flag.longer$mapped.reads.trans))
 
 map.flag.longer$proportion <- proportion
 
-map.flag.longer$sample <- factor(map.flag.longer$sample, levels=c("Cop.NoPolyA", "Cop.Q.NoPolyA","Cop.PolyA","Q29.Cop.DRNA","Q36.Cop.DRNA"))
+map.flag.longer$sample <- factor(map.flag.longer$sample, levels=c("Cop.NoPolyA", "Cop.Q.NoPolyA","Cop.PolyA","Q29.Cop.DRNA","Q36.Cop.DRNA", "Q29.Cop.DRNA.R","Q36.Cop.DRNA.R"))
 
 
 
@@ -131,7 +132,54 @@ ggplot(map.flag.longer, aes(x= sample, y= proportion))+
     theme_bw()+
   theme(axis.text.x = element_text(angle = 90))+
   scale_y_continuous(labels = scales::percent_format(accuracy = 1))+
-  labs(y="Non-primary to Primary Reads (%)")
+  labs(y="Non-primary Vs. Primary Reads (%)")
   
+```
+# Read Length
+```{r}
+
+read.length <- data.frame(`Read Length`=c(), count=c(), sample=c())
+for (index in 1:length(samples)){
+  temp_genome_data <- readLines(file.path(polyapath, "genome_sam_stats", paste0(samples[index],".sam.stats")))
+
+  temp_rl_genome <- grep("^RL",temp_genome_data, value=TRUE)
+  
+   temp_rl_genome <- separate(data.frame(temp_rl_genome),col=1, into=c("ID","Read Length", "count"), sep="\t")[,-1]
+   
+   temp_rl_genome <- temp_rl_genome %>% mutate(sample=samp_ab[index])
+   read.length <- rbind(read.length, temp_rl_genome)
+}
+temp_rl_genome
+
+library(plotly)
+p <- ggplot(read.length %>% subset(as.numeric(`Read Length`) < 5000), aes(x= as.numeric(`Read Length`), y = as.numeric(count)))+
+  geom_line(aes(color=sample))+
+  theme_bw()+
+  labs(x="Read Length", y="Frequency")
+
+ggplotly(p)
+```
+
+```{r}
+
+gc.content <- data.frame(GC=c(), count=c(), sample=c())
+
+for (index in 1:length(samples)){
+  temp_genome_data <- readLines(file.path(polyapath, "genome_sam_stats", paste0(samples[index],".sam.stats")))
+  
+  gc <- grep("^GCF",temp_genome_data, value=TRUE)
+  gc <- separate(data.frame(gc),col=1, into=c("Pair", "GC", "Count"), sep="\t")[,-1]
+   
+  gc <- gc %>% mutate(sample=samp_ab[index])
+  gc.content  <- rbind(gc.content , gc)
+}
+gc.content %>% group_by(sample) %>% mutate(total=sum(as.numeric(Count)*2))
+library(plotly)
+p <- ggplot(gc.content , aes(x= as.numeric(GC), y = as.numeric(Count)/sum(as.numeric(Count))))+
+  geom_line(aes(color=sample))+
+  theme_bw()+
+  labs(x="GC content", y="Count")
+
+ggplotly(p)
 ```
 

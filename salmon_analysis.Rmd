@@ -41,7 +41,7 @@ direct_rna_meta <- read.csv(paste(dir, "direct_flair.txt", sep="/"), sep="\t")
 # read eggnog-mapper annotation
 ```{r}
 
-egg_nog <- read.csv(paste0(ref, "GCF_000007685.gffread.eggnogmapper.tsv"),sep="\t",skip=4,header=FALSE)
+egg_nog <- read.csv(paste0(ref, "GCF_000007685.gffread.eggnogmapper.1v1.bacteria.tsv"),sep="\t",skip=4,header=FALSE)
 
 egg_nog_genename <- egg_nog %>% dplyr::select(c(V1,V6))
 colnames(egg_nog_genename) <- c("salmon_tax", "gene_name")
@@ -195,7 +195,7 @@ matrix <- assay(rld)[ topVarGenes, ] # extract genes with top variation aceoss s
 which(rownames(matrix) == "gene-LIC_RS02730")
 matrix
 matrix <- matrix - rowMeans(matrix)
-colnames(matrix)<- c("Q29.2","Q29.1","Q36.2","Q36.1")
+colnames(matrix)<- c("Q29.Cop.DRNA","Q36.Cop.DRNA", "Q29.Cop.DRNA.R","Q36.Cop.DRNA.R")
 
 gene_id <- as.data.frame(as.character(rownames(matrix)))
 colnames(gene_id) <- "salmon_tax"
@@ -220,6 +220,7 @@ library(edgeR)
 counts <- txi$counts
 group <- factor(c("Q29","Q29","Q36","Q36"),levels=c("Q29","Q36"))
 y <- DGEList(counts=counts,group=group)
+y$samples$group<- relevel(y$samples$group, ref="Q29") # make Q29 samples the base (control)
 keep <- filterByExpr(y) # keeps rows that have worthwhile counts in a minumum numberof samples
 y <- y[keep,,keep.lib.sizes=FALSE]
 y <- calcNormFactors(y)
@@ -268,14 +269,16 @@ ggplot(edgeR_salmonDF, aes(x=logFC,y = -log10(FDR)))+
   geom_vline(xintercept=c(-1,1), col="gray",linetype="dashed")+
   geom_hline(yintercept=-log10(0.05), col="gray",linetype="dashed")+
   scale_color_manual(values=c("orange", "blue", "black"))+
-  geom_text_repel(aes(label=delabel))
+  geom_text_repel(aes(label=delabel))+
+  labs(x="log2(29C/36C)")+
+  theme(legend.position = "none")
 
 ```
 
 
 
 ```{r}
-
+egg_nog
 egg_nog_go <-  egg_nog %>% dplyr::select(c(V1,V7)) %>% dplyr::rename("salmon_tax"=V1,"GO_terms" =V7)
 salmonGoDF<- left_join(Q29_upregulated_gene,egg_nog_go,by="salmon_tax")
 Q29_upregulated_gene
@@ -325,16 +328,40 @@ head(edgeR2ResDF)
 ###GO term
 ```{r}
 
-library(GO.db)
+library(KEGGREST)
 head(egg_nog)
-egg_nog_go <-  egg_nog %>% dplyr::select(c(V1,V7)) %>% dplyr::rename("salmon_tax"=V1,"GO_terms" =V7)
-salmonGoDF<- left_join(edgeR2ResDF,egg_nog_go,by="salmon_tax")
-cyt.go <- salmonGoDF[!is.na(salmonGoDF$GO_terms),]$GO_terms
-head(cyt.go)
-term <- select(GO.db, keys=cyt.go, columns="TERM")
-term
+egg_nog_kegg <-  egg_nog %>% dplyr::select(c(V1,V10)) %>% dplyr::rename("salmon_tax"=V1,"KEGG_terms" =V10)
+salmonkeggDF<- left_join(edgeR2ResDF,egg_nog_kegg,by="salmon_tax")
+kegg.terms <- salmonkeggDF[!is.na(salmonkeggDF$KEGG_terms) & salmonkeggDF$KEGG_terms != "",]$KEGG_terms
+kegg.terms <- unique(unlist(sapply(kegg.terms,function(x){unlist(strsplit(x,split=","))})))
 
-egg_nog_go
-table(Ontology(unique(unlist(strsplit(salmonGoDF$GO_terms,",")))))
 
+kegg.terms.map <- kegg.terms[sapply(kegg.terms, function(x){
+  grepl("ko",x)
+})]
+
+
+
+kegg_pathway <- getKEGGPathwayNames(species.KEGG="ko") %>% mutate(kegg_id=sapply(PathwayID, function(x){
+  unlist(strsplit(x, split=":"))[2]
+}))
+kegg.term.list <- kegg_pathway$kegg_id
+
+index <- list()
+for(term in kegg.terms.map){
+  index_term <- which(unlist(lapply(salmonkeggDF$KEGG_terms, function(x){ifelse(grepl(term,x), TRUE, FALSE)})))
+  index[[eval(term)]] <- index_term
+}
+
+kegg.pathway.diffexp <- fry(y, index,design=design) %>% subset(NGenes >=4)
+kegg.pathway.diffexp[order(kegg.pathway.diffexp$FDR),]
+left_join(kegg.pathway.diffexp,kegg_pathway)
+
+kegg.pathway.diffexp$kegg_id <- rownames(kegg.pathway.diffexp)
+left_join(kegg.pathway.diffexp,kegg_pathway) %>% select(-c(PValue.Mixed, FDR.Mixed, kegg_id))
+# kegg_path_FDR_matrix <- head(left_join(kegg.pathway.diffexp,kegg_pathway) #%>% select(FDR,Description),5)
+# rownames(kegg_path_FDR_matrix) <- kegg_path_FDR_matrix$Description
+# kegg_path_FDR_matrix$FDR <- -log10(as.numeric(kegg_path_FDR_matrix$FDR))
+# kegg_path_FDR_matrix <- as.matrix(kegg_path_FDR_matrix %>% select(!Description))
+# pheatmap(kegg_path_FDR_matrix, cluster_cols=FALSE,cluster_rows = FALSE)
 ```
