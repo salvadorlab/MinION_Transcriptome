@@ -113,19 +113,19 @@ head(deseq.results,2)
 # Plot PCA to see the clustering of the samples (similarities and variances within a group)
 ```{r}
 
-vsd <- vst(ddsTxi)
+vsd <- rlog(ddsTxi)
 pcaData <- plotPCA(vsd, ,returnData = TRUE)
 pcaData$Repeat <- c(rep(c("R2", "R1"),2))
 
 percentVar <- round(100 * attr(pcaData, "percentVar"))
-
+pcaData
 ggplot(pcaData, aes(x = PC1, y = PC2, color=condition, shape=Repeat)) +
   geom_point(size =3) +
   xlab(paste0("PC1: ", percentVar[1], "% variance")) +
   ylab(paste0("PC2: ", percentVar[2], "% variance")) +
-  theme_bw()
+  theme_bw()+
   coord_fixed() +
-  ggtitle("PCA with VST data")
+  ggtitle("PCA with Regularised Log Transformation(rlog)")
 ```
 
 
@@ -206,15 +206,15 @@ ggplot(deseq2ResDF, aes(log2(baseMean), log2FoldChange, colour=significant)) +
 ```{r}
 library(pheatmap)
 # transforms the count data to the log2 scale in a way which minimizes differences between samples for rows with small counts, and which normalizes with respect to library size.
-rld <- rlog(salmon.deseq, blind=FALSE) # input is stringite output
+rld <- rlog(salmon.deseq, blind = FALSE)
 
 # assay is a summarizedExperiment object, matrix like
 topVarGenes <- head(order(rowVars(assay(rld)), decreasing=T),50)# top 100 genes' variances 
 matrix <- assay(rld)[ topVarGenes, ] # extract genes with top variation aceoss samples
 which(rownames(matrix) == "gene-LIC_RS02730")
-matrix
 matrix <- matrix - rowMeans(matrix)
-colnames(matrix)<- c("Q29.Cop.DRNA","Q36.Cop.DRNA", "Q29.Cop.DRNA.R","Q36.Cop.DRNA.R")
+head(matrix)
+colnames(matrix)<- c("Q29.Cop.DRNA.R","Q29.Cop.DRNA", "Q36.Cop.DRNA.R","Q36.Cop.DRNA")
 
 gene_id <- as.data.frame(as.character(rownames(matrix)))
 colnames(gene_id) <- "salmon_tax"
@@ -227,7 +227,6 @@ rownames(matrix) <- gene_id$gene_visual
 annotation_data <- data.frame("samples"=c(rep("Q29",2), rep("Q36",2)))
 rownames(annotation_data) <- colnames(matrix)
 annoCol <- list(category = c("Q29","Q36"))
-matrix
 pheatmap(matrix, annotation_col = annotation_data, annotation_colors =annoCol, angle_col=45,fontsize_row=5)
 ```
 
