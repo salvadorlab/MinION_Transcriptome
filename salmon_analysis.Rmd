@@ -132,6 +132,8 @@ ggplot(pcaData, aes(x = PC1, y = PC2, color=condition, shape=Repeat)) +
 ```{r}
 
 resultsNames(salmon.deseq)
+?resultsNames
+
 res_lfcShrink_salmon <- lfcShrink(salmon.deseq,coef = 2, type="apeglm")
 sum(res_lfcShrink_salmon$padj < 0.05 , na.rm=TRUE)
 
@@ -143,7 +145,7 @@ deseq_salmonDF <- as.data.frame(res_lfcShrink_salmon)
 # write.csv(res_lfcShrink_salmon,paste0(dir,"deseq_salmonDF.csv"))
 # add a column for differential expression based on p value and log fold change
 deseq_salmonDF$diffexpressed <- "Not differentially expressed"
-
+deseq_salmonDF
 # if with p-value < 0.05 and log2fold change > abs(1), label either up or down regulated 
 deseq_salmonDF$diffexpressed[deseq_salmonDF$log2FoldChange >= 1 & deseq_salmonDF$pvalue < 0.05] <- "Upregulated"
 deseq_salmonDF$diffexpressed[deseq_salmonDF$log2FoldChange <= -1 & deseq_salmonDF$pvalue < 0.05] <- "Downregulated"
@@ -161,6 +163,7 @@ deseq_salmonDF$delabel[deseq_salmonDF$diffexpressed != "Not differentially expre
 deseq_salmonDF
 deseq_salmonDF[!is.na(deseq_salmonDF$delabel),]
 library(ggrepel)
+deseq_salmonDF
 ggplot(deseq_salmonDF, aes(x=log2FoldChange,y = -log10(padj)))+
   geom_point(aes(color =diffexpressed))+
   theme_bw()+
@@ -227,6 +230,7 @@ rownames(matrix) <- gene_id$gene_visual
 annotation_data <- data.frame("samples"=c(rep("Q29",2), rep("Q36",2)))
 rownames(annotation_data) <- colnames(matrix)
 annoCol <- list(category = c("Q29","Q36"))
+head(matrix)
 pheatmap(matrix, annotation_col = annotation_data, annotation_colors =annoCol, angle_col=45,fontsize_row=5)
 ```
 
@@ -238,6 +242,7 @@ library(edgeR)
 counts <- txi$counts
 group <- factor(c("Q29","Q29","Q36","Q36"),levels=c("Q29","Q36"))
 y <- DGEList(counts=counts,group=group)
+y$samples$group
 y$samples$group<- relevel(y$samples$group, ref="Q29") # make Q29 samples the base (control)
 keep <- filterByExpr(y) # keeps rows that have worthwhile counts in a minumum numberof samples
 y <- y[keep,,keep.lib.sizes=FALSE]
@@ -263,7 +268,7 @@ edgeR_salmonDF <- as.data.frame(qlf)
 # write.csv(res_lfcShrink_salmon,paste0(dir,"deseq_salmonDF.csv"))
 # add a column for differential expression based on p value and log fold change
 edgeR_salmonDF$diffexpressed <- "Not differentially expressed"
-
+qlf
 # if with p-value < 0.05 and log2fold change > abs(1), label either up or down regulated 
 edgeR_salmonDF$diffexpressed[edgeR_salmonDF$logFC >= 1 & edgeR_salmonDF$FDR < 0.05] <- "Upregulated"
 edgeR_salmonDF$diffexpressed[edgeR_salmonDF$logFC <= -1 & edgeR_salmonDF$FDR < 0.05] <- "Downregulated"
@@ -288,7 +293,7 @@ ggplot(edgeR_salmonDF, aes(x=logFC,y = -log10(FDR)))+
   geom_hline(yintercept=-log10(0.05), col="gray",linetype="dashed")+
   scale_color_manual(values=c("orange", "blue", "black"))+
   geom_text_repel(aes(label=delabel))+
-  labs(x="log2(29C/36C)")+
+  labs(x="log2(36C/29C)")+
   theme(legend.position = "none")
 
 ```
