@@ -110,6 +110,25 @@ sum(deseq.results$padj < 0.05 , na.rm=TRUE)#61
 head(deseq.results,2)
 ```
 
+# Plot PCA to see the clustering of the samples (similarities and variances within a group)
+```{r}
+
+vsd <- vst(ddsTxi)
+pcaData <- plotPCA(vsd, ,returnData = TRUE)
+pcaData$Repeat <- c(rep(c("R2", "R1"),2))
+
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+ggplot(pcaData, aes(x = PC1, y = PC2, color=condition, shape=Repeat)) +
+  geom_point(size =3) +
+  xlab(paste0("PC1: ", percentVar[1], "% variance")) +
+  ylab(paste0("PC2: ", percentVar[2], "% variance")) +
+  theme_bw()
+  coord_fixed() +
+  ggtitle("PCA with VST data")
+```
+
+
 ```{r}
 
 resultsNames(salmon.deseq)
