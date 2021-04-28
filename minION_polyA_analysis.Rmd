@@ -1,0 +1,84 @@
+---
+title: "minION_polyA"
+author: "Rachel Xu"
+date: "4/28/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### set path and sample names
+```{r}
+
+nano.path<- "/Users/rachel/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/polyAtail/nanopolish_output"
+
+
+
+```
+
+# NanoPolish
+
+### Read Nanopolish Files 
+```{r}
+library(dplyr)
+headers <- c("readname","contig","position","leader_start","adapter_start","polya_start","transcript_start","read_rate","polya_length","qc_tag")
+
+Q29.Cop.DRNA <- read.csv(file.path(nano.path, "Q29_Copenhageni_Direct-RNA_FAST5_Pass.nanopolish.polyA.pass_only.tsv"),sep = "\t", col.names =headers)
+Q29.Cop.DRNA$sample <- "Q29.Cop.DRNA"
+Q29.Cop.DRNA$temp <- "Q29"
+
+
+Q29.Cop.DRNA.R <- read.csv(file.path(nano.path, "Q29_Copenhageni_Direct-RNA_Repeat_FAST5_Pass.nanopolish.polyA.pass_only.tsv"),sep = "\t", col.names =headers)
+Q29.Cop.DRNA.R$sample <- "Q29.Cop.DRNA.R"
+Q29.Cop.DRNA.R$temp <- "Q29"
+
+
+Q36.Cop.DRNA <- read.csv(file.path(nano.path, "Q36_Copenhageni_Direct-RNA_FAST5_Pass.nanopolish.polyA.pass_only.tsv"),sep = "\t", col.names =headers)
+Q36.Cop.DRNA$sample <- "Q36.Cop.DRNA"
+Q36.Cop.DRNA$temp <- "Q36"
+
+
+Q36.Cop.DRNA.R <- read.csv(file.path(nano.path, "Q36_Copenhageni_Direct-RNA_Repeat_FAST5_Pass.nanopolish.polyA.pass_only.tsv"),sep = "\t", col.names =headers)
+Q36.Cop.DRNA.R$sample <- "Q36.Cop.DRNA.R"
+Q36.Cop.DRNA.R$temp <- "Q36"
+
+directRna.nano.combined <- rbind(Q29.Cop.DRNA, Q29.Cop.DRNA.R,Q36.Cop.DRNA,Q36.Cop.DRNA.R)
+```
+
+
+### plot over length of the polya tail for each sample
+```{r}
+library(ggplot2)
+ggplot(directRna.nano.combined, aes(x= sample, y=log(polya_length)))+
+  geom_violin(aes(fill=temp))+
+  geom_boxplot(width=0.1)+
+  theme_bw()+
+  scale_fill_manual(values=c("#bfc0c0", "#ef8354"))+
+  labs(y="PolyA tail length estimates (Log)")
+```
+
+# polyA tail length vs. position
+```{r}
+plot <- ggplot(directRna.nano.combined, aes(x=position, y=polya_length, group=temp))+
+  geom_point(aes(color=temp))+
+  facet_wrap(vars(sample))+
+  theme_bw()+
+  scale_color_manual(values=c("#79aca9", "#ef8354"))
+
+plot
+```
+
+# polyA tail abundance vs. position
+```{r}
+plot <- ggplot(directRna.nano.combined, aes(x=position, group=temp))+
+  geom_density(aes(color=temp))+
+  facet_wrap(vars(sample))+
+  theme_bw()+
+  scale_color_manual(values=c("#79aca9", "#ef8354"))+
+  labs(y="polyA tail abundance")
+
+plot
+```
+

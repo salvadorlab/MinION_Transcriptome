@@ -8,13 +8,12 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_knit$set(root.dir = "")
-library(tximeta)
+
 library(tximport)
 library(ggplot2)
 library(dplyr)
 library(tidyr)
-library(readr)
-library(IsoformSwitchAnalyzeR)
+
 ```
 
 # list samples, read int metadata
@@ -38,16 +37,16 @@ direct_rna_meta <- read.csv(paste(dir, "direct_flair.txt", sep="/"), sep="\t")
 
 ```
 
-# read eggnog-mapper annotation
+# read eggnog-mapper annotation (gene annotation from egg nog mapper)
 ```{r}
 
-egg_nog <- read.csv(paste0(ref, "GCF_000007685.gffread.eggnogmapper.1v1.bacteria.tsv"),sep="\t",skip=4,header=FALSE)
-
+egg_nog <- read.csv(paste0(ref, "GCF_000007685.gffread.eggnogmapper.tsv"),sep="\t",skip=4,header=FALSE)
+egg_nog
 egg_nog_genename <- egg_nog %>% dplyr::select(c(V1,V6))
 colnames(egg_nog_genename) <- c("salmon_tax", "gene_name")
 head(egg_nog_genename,2)
 ```
-# format gtf file
+# format gtf file (gene annotation from gtf file)
 ```{r}
 gtf_df <- read.csv(paste0(ref,"GCF_000007685.1_ASM768v1_genomic.gtf"),skip=5,sep=c("\t"),header = FALSE) %>% subset(V3 == "gene")
 # head(gtf_df)
@@ -64,6 +63,7 @@ tx2gene <- gtf_df %>% mutate(salmon_tax = sapply(V9, function(x){
     gene_name
 })) %>% dplyr::select(c("salmon_tax","gene_name"))
 
+head(tx2gene,2)
 ```
 
 
@@ -99,7 +99,7 @@ ddsTxi <- DESeqDataSetFromTximport(txi,
                                    colData = salmon_direct_meta,
                                   samples ~ condition)
 
-
+ddsTxi$condition <- relevel(ddsTxi$condition, ref="Q29")
 
 salmon.deseq <- DESeq(ddsTxi)
 
@@ -112,13 +112,13 @@ head(deseq.results,2)
 
 # Plot PCA to see the clustering of the samples (similarities and variances within a group)
 ```{r}
-
-vsd <- rlog(ddsTxi)
-pcaData <- plotPCA(vsd, ,returnData = TRUE)
+ddsTxi
+rlg <- rlog(ddsTxi,blind = TRUE)
+pcaData <- plotPCA(rlg,ntop=3736,returnData=TRUE)
 pcaData$Repeat <- c(rep(c("R2", "R1"),2))
-
-percentVar <- round(100 * attr(pcaData, "percentVar"))
 pcaData
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
 ggplot(pcaData, aes(x = PC1, y = PC2, color=condition, shape=Repeat)) +
   geom_point(size =3) +
   xlab(paste0("PC1: ", percentVar[1], "% variance")) +
@@ -147,8 +147,8 @@ deseq_salmonDF <- as.data.frame(res_lfcShrink_salmon)
 deseq_salmonDF$diffexpressed <- "Not differentially expressed"
 deseq_salmonDF
 # if with p-value < 0.05 and log2fold change > abs(1), label either up or down regulated 
-deseq_salmonDF$diffexpressed[deseq_salmonDF$log2FoldChange >= 1 & deseq_salmonDF$pvalue < 0.05] <- "Upregulated"
-deseq_salmonDF$diffexpressed[deseq_salmonDF$log2FoldChange <= -1 & deseq_salmonDF$pvalue < 0.05] <- "Downregulated"
+deseq_salmonDF$diffexpressed[deseq_salmonDF$log2FoldChange >= 1 & deseq_salmonDF$padj < 0.05] <- "Upregulated"
+deseq_salmonDF$diffexpressed[deseq_salmonDF$log2FoldChange <= -1 & deseq_salmonDF$padj < 0.05] <- "Downregulated"
 deseq_salmonDF
 # factor so legend is ordered
 deseq_salmonDF$diffexpressed <- factor(deseq_salmonDF$diffexpressed, levels=c("Upregulated", "Downregulated", "Not differentially expressed"))
@@ -162,6 +162,7 @@ deseq_salmonDF$delabel <- NA
 deseq_salmonDF$delabel[deseq_salmonDF$diffexpressed != "Not differentially expressed"] <- deseq_salmonDF$gene_name[deseq_salmonDF$diffexpressed != "Not differentially expressed"]
 deseq_salmonDF
 deseq_salmonDF[!is.na(deseq_salmonDF$delabel),]
+
 library(ggrepel)
 deseq_salmonDF
 ggplot(deseq_salmonDF, aes(x=log2FoldChange,y = -log10(padj)))+
@@ -170,7 +171,8 @@ ggplot(deseq_salmonDF, aes(x=log2FoldChange,y = -log10(padj)))+
   geom_vline(xintercept=c(-1,1), col="gray",linetype="dashed")+
   geom_hline(yintercept=-log10(0.05), col="gray",linetype="dashed")+
   scale_color_manual(values=c("orange", "blue", "black"))+
-  geom_text_repel(aes(label=delabel))
+  geom_text_repel(aes(label=delabel))+
+  labs(x="logs(36C/29C)")
 ```
 
 ```{r}
@@ -214,7 +216,7 @@ rld <- rlog(salmon.deseq, blind = FALSE)
 # assay is a summarizedExperiment object, matrix like
 topVarGenes <- head(order(rowVars(assay(rld)), decreasing=T),50)# top 100 genes' variances 
 matrix <- assay(rld)[ topVarGenes, ] # extract genes with top variation aceoss samples
-which(rownames(matrix) == "gene-LIC_RS02730")
+# which(rownames(matrix) == "gene-LIC_RS02730")
 matrix <- matrix - rowMeans(matrix)
 head(matrix)
 colnames(matrix)<- c("Q29.Cop.DRNA.R","Q29.Cop.DRNA", "Q36.Cop.DRNA.R","Q36.Cop.DRNA")
@@ -300,18 +302,7 @@ ggplot(edgeR_salmonDF, aes(x=logFC,y = -log10(FDR)))+
 
 
 
-```{r}
-egg_nog
-egg_nog_go <-  egg_nog %>% dplyr::select(c(V1,V7)) %>% dplyr::rename("salmon_tax"=V1,"GO_terms" =V7)
-salmonGoDF<- left_join(Q29_upregulated_gene,egg_nog_go,by="salmon_tax")
-Q29_upregulated_gene
-salmonGoDF
-table(Ontology(unique(unlist(strsplit(salmonGoDF[!is.na(salmonGoDF$GO_terms),]$GO_terms,",")))))
-Ontology(unique(unlist(strsplit(salmonGoDF$GO_terms,","))))
-fry(y, which(is.na(salmonGoDF$GO_terms)))
-which(is.na(salmonGoDF$GO_terms))
-y$counts
-```
+
 
 ```{r}
 
@@ -348,43 +339,108 @@ head(edgeR2ResDF)
 
 # GO and KEGG annotation
 
-###GO term
+###KEGG term
 ```{r}
 
 library(KEGGREST)
 head(egg_nog)
+
+# select KEGG pathway column from eggnog output
 egg_nog_kegg <-  egg_nog %>% dplyr::select(c(V1,V10)) %>% dplyr::rename("salmon_tax"=V1,"KEGG_terms" =V10)
+# merge gene name edgeR result with eggnog kegg pathway
 salmonkeggDF<- left_join(edgeR2ResDF,egg_nog_kegg,by="salmon_tax")
+# get all KEGG terms for all genes
 kegg.terms <- salmonkeggDF[!is.na(salmonkeggDF$KEGG_terms) & salmonkeggDF$KEGG_terms != "",]$KEGG_terms
+# get unique KEGG terms for genes identified in samples
 kegg.terms <- unique(unlist(sapply(kegg.terms,function(x){unlist(strsplit(x,split=","))})))
 
-
+# only keep kegg terms with "ko" identifier, ignore kegg pathwat with "map" identifiers (overlapped)
 kegg.terms.map <- kegg.terms[sapply(kegg.terms, function(x){
   grepl("ko",x)
 })]
 
 
-
+# remove the "path:" in front of every KEGG identifier
 kegg_pathway <- getKEGGPathwayNames(species.KEGG="ko") %>% mutate(kegg_id=sapply(PathwayID, function(x){
   unlist(strsplit(x, split=":"))[2]
 }))
 kegg.term.list <- kegg_pathway$kegg_id
 
+# make gene set for each KEGG identifier (all genes identified with the KEGG identifier will be put in a gene set)
 index <- list()
 for(term in kegg.terms.map){
   index_term <- which(unlist(lapply(salmonkeggDF$KEGG_terms, function(x){ifelse(grepl(term,x), TRUE, FALSE)})))
   index[[eval(term)]] <- index_term
 }
 
+# only keep KEGG gene sets with more than 4 genes
 kegg.pathway.diffexp <- fry(y, index,design=design) %>% subset(NGenes >=4)
+# order differentially expressed KEGG path base on FDR
 kegg.pathway.diffexp[order(kegg.pathway.diffexp$FDR),]
+kegg.pathway.diffexp$kegg_id <- rownames(kegg.pathway.diffexp)
 left_join(kegg.pathway.diffexp,kegg_pathway)
 
-kegg.pathway.diffexp$kegg_id <- rownames(kegg.pathway.diffexp)
-left_join(kegg.pathway.diffexp,kegg_pathway) %>% select(-c(PValue.Mixed, FDR.Mixed, kegg_id))
+
+# left_join(kegg.pathway.diffexp,kegg_pathway) %>% select(-c(PValue.Mixed, FDR.Mixed, kegg_id))
 # kegg_path_FDR_matrix <- head(left_join(kegg.pathway.diffexp,kegg_pathway) #%>% select(FDR,Description),5)
 # rownames(kegg_path_FDR_matrix) <- kegg_path_FDR_matrix$Description
 # kegg_path_FDR_matrix$FDR <- -log10(as.numeric(kegg_path_FDR_matrix$FDR))
 # kegg_path_FDR_matrix <- as.matrix(kegg_path_FDR_matrix %>% select(!Description))
 # pheatmap(kegg_path_FDR_matrix, cluster_cols=FALSE,cluster_rows = FALSE)
+```
+
+###GO term
+```{r}
+library(GO.db)
+
+head(egg_nog)
+egg_nog_go <-  egg_nog %>% dplyr::select(c(V1,V7)) %>% dplyr::rename("salmon_tax"=V1,"GO_terms" =V7)
+salmonGODF<- left_join(edgeR2ResDF,egg_nog_go,by="salmon_tax")
+go.terms <- salmonGODF[!is.na(salmonGODF$GO_terms) & salmonGODF$GO_terms != "",]$GO_terms
+go.terms <- unique(unlist(sapply(go.terms,function(x){unlist(strsplit(x,split=","))})))
+length(go.terms)
+
+
+zz = Ontology(GOTERM)
+ table(unlist(zz))
+ 
+ # get each go term's annotation
+goterms = unlist(Term(GOTERM))
+go.annotation <- data.frame(goterms)
+go.annotation$GO_terms <- rownames(go.annotation)
+ 
+ # database query all GO terms
+MF.go <- Ontology(GOTERM)[Ontology(GOTERM)=="MF"]
+BP.go <- Ontology(GOTERM)[Ontology(GOTERM)=="BP"]
+CC.go <- Ontology(GOTERM)[Ontology(GOTERM)=="CC"]
+
+
+
+# classify go terms analyzed from sequences based on queried GO terms
+go.terms.mf <- go.terms[go.terms %in% names(MF.go)]
+go.terms.bp <- go.terms[go.terms %in% names(BP.go)]
+go.terms.cc <- go.terms[go.terms %in% names(CC.go)]
+
+
+
+
+index <- list() # assign genes into each GO terms, each GO terms as a gene set
+i=0
+for(term in go.terms.cc){
+  index_term <- which(unlist(lapply(salmonGODF$GO_terms, function(x){ifelse(grepl(term,x), TRUE, FALSE)})))
+  index[[eval(term)]] <- index_term
+  i=i+1
+  # print(i)
+}
+
+# test the gene set (go term that is enriched), MF only 
+go.diffexp <- fry(y, index,design=design) %>% subset(NGenes >=4)
+go.diffexp$GO_terms <- rownames(go.diffexp)
+go.diffexp <- go.diffexp[order(go.diffexp$FDR),]
+go.diffexp.annot<-left_join(go.diffexp, go.annotation)
+go.diffexp.annot %>% dplyr::select(c(NGenes, Direction, PValue,FDR, GO_terms, goterms))
+
+
+
+
 ```
