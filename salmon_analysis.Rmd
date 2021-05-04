@@ -347,8 +347,10 @@ head(egg_nog)
 
 # select KEGG pathway column from eggnog output
 egg_nog_kegg <-  egg_nog %>% dplyr::select(c(V1,V10)) %>% dplyr::rename("salmon_tax"=V1,"KEGG_terms" =V10)
+# get DEG genes
+edgeR2ResDF_DEG <- edgeR2ResDF %>% subset(FDR < 0.05)
 # merge gene name edgeR result with eggnog kegg pathway
-salmonkeggDF<- left_join(edgeR2ResDF,egg_nog_kegg,by="salmon_tax")
+salmonkeggDF<- left_join(edgeR2ResDF_DEG,egg_nog_kegg,by="salmon_tax")
 # get all KEGG terms for all genes
 kegg.terms <- salmonkeggDF[!is.na(salmonkeggDF$KEGG_terms) & salmonkeggDF$KEGG_terms != "",]$KEGG_terms
 # get unique KEGG terms for genes identified in samples
@@ -374,7 +376,7 @@ for(term in kegg.terms.map){
 }
 
 # only keep KEGG gene sets with more than 4 genes
-kegg.pathway.diffexp <- fry(y, index,design=design) %>% subset(NGenes >=4)
+kegg.pathway.diffexp <- camera(y, index,design=design) %>% subset(NGenes >=4)
 # order differentially expressed KEGG path base on FDR
 kegg.pathway.diffexp[order(kegg.pathway.diffexp$FDR),]
 kegg.pathway.diffexp$kegg_id <- rownames(kegg.pathway.diffexp)
@@ -395,11 +397,11 @@ library(GO.db)
 
 head(egg_nog)
 egg_nog_go <-  egg_nog %>% dplyr::select(c(V1,V7)) %>% dplyr::rename("salmon_tax"=V1,"GO_terms" =V7)
-salmonGODF<- left_join(edgeR2ResDF,egg_nog_go,by="salmon_tax")
+edgeR2ResDF_DEG <- edgeR2ResDF %>% subset(FDR < 0.05)
+salmonGODF<- left_join(edgeR2ResDF_DEG,egg_nog_go,by="salmon_tax")
 go.terms <- salmonGODF[!is.na(salmonGODF$GO_terms) & salmonGODF$GO_terms != "",]$GO_terms
 go.terms <- unique(unlist(sapply(go.terms,function(x){unlist(strsplit(x,split=","))})))
 length(go.terms)
-
 
 zz = Ontology(GOTERM)
  table(unlist(zz))
@@ -433,12 +435,32 @@ for(term in go.terms.cc){
   # print(i)
 }
 
+
+
 # test the gene set (go term that is enriched), MF only 
-go.diffexp <- fry(y, index,design=design) %>% subset(NGenes >=4)
+go.diffexp <- camera(y, index,design=design) %>% subset(NGenes >=4)
 go.diffexp$GO_terms <- rownames(go.diffexp)
 go.diffexp <- go.diffexp[order(go.diffexp$FDR),]
 go.diffexp.annot<-left_join(go.diffexp, go.annotation)
 go.diffexp.annot %>% dplyr::select(c(NGenes, Direction, PValue,FDR, GO_terms, goterms))
+
+# # if want to test for significance in specific pathway
+# index <- list() # assign genes into each GO terms, each GO terms as a gene set
+# i=0
+# GO.interest <- c("GO:0045260", "GO:0043590")
+# for(term in GO.interest){
+#   index_term <- which(unlist(lapply(salmonGODF$GO_terms, function(x){ifelse(grepl(term,x), TRUE, FALSE)})))
+#   index[[eval(term)]] <- index_term
+#   i=i+1
+#   # print(i)
+# }
+# 
+# # test the gene set (go term that is enriched), MF only 
+# go.diffexp <- fry(y, index,design=design) %>% subset(NGenes >=4)
+# go.diffexp$GO_terms <- rownames(go.diffexp)
+# go.diffexp <- go.diffexp[order(go.diffexp$FDR),]
+# go.diffexp.annot<-left_join(go.diffexp, go.annotation)
+# go.diffexp.annot %>% dplyr::select(c(NGenes, Direction, PValue,FDR, GO_terms, goterms))
 
 
 
