@@ -23,28 +23,30 @@ nano.path<- "/Users/rachel/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/p
 ### Read Nanopolish Files 
 ```{r}
 library(dplyr)
-headers <- c("readname","contig","position","leader_start","adapter_start","polya_start","transcript_start","read_rate","polya_length","qc_tag")
+headers <- c("readname","contig","position","leader_start","adapter_start","polya_start","transcript_start","read_rate","polya_length","qc_tag","biotype")
 
-Q29.Cop.DRNA <- read.csv(file.path(nano.path, "Q29_Copenhageni_Direct-RNA_FAST5_Pass.nanopolish.polyA.pass_only.tsv"),sep = "\t", col.names =headers)
+Q29.Cop.DRNA <- read.csv(file.path(nano.path, "Q29_Copenhageni_Direct-RNA_FAST5_Pass.nanopolish.polyA.pass_only.biotypeAnnotated.tsv"),sep = "\t", col.names =headers)
 Q29.Cop.DRNA$sample <- "Q29.Cop.DRNA"
 Q29.Cop.DRNA$temp <- "Q29"
 
 
-Q29.Cop.DRNA.R <- read.csv(file.path(nano.path, "Q29_Copenhageni_Direct-RNA_Repeat_FAST5_Pass.nanopolish.polyA.pass_only.tsv"),sep = "\t", col.names =headers)
+Q29.Cop.DRNA.R <- read.csv(file.path(nano.path, "Q29_Copenhageni_Direct-RNA_Repeat_FAST5_Pass.nanopolish.polyA.pass_only.biotypeAnnotated.tsv"),sep = "\t", col.names =headers)
 Q29.Cop.DRNA.R$sample <- "Q29.Cop.DRNA.R"
 Q29.Cop.DRNA.R$temp <- "Q29"
 
 
-Q36.Cop.DRNA <- read.csv(file.path(nano.path, "Q36_Copenhageni_Direct-RNA_FAST5_Pass.nanopolish.polyA.pass_only.tsv"),sep = "\t", col.names =headers)
+Q36.Cop.DRNA <- read.csv(file.path(nano.path, "Q36_Copenhageni_Direct-RNA_FAST5_Pass.nanopolish.polyA.pass_only.biotypeAnnotated.tsv"),sep = "\t", col.names =headers)
 Q36.Cop.DRNA$sample <- "Q36.Cop.DRNA"
 Q36.Cop.DRNA$temp <- "Q36"
 
 
-Q36.Cop.DRNA.R <- read.csv(file.path(nano.path, "Q36_Copenhageni_Direct-RNA_Repeat_FAST5_Pass.nanopolish.polyA.pass_only.tsv"),sep = "\t", col.names =headers)
+Q36.Cop.DRNA.R <- read.csv(file.path(nano.path, "Q36_Copenhageni_Direct-RNA_Repeat_FAST5_Pass.nanopolish.polyA.pass_only.biotypeAnnotated.tsv"),sep = "\t", col.names =headers)
 Q36.Cop.DRNA.R$sample <- "Q36.Cop.DRNA.R"
 Q36.Cop.DRNA.R$temp <- "Q36"
 
 directRna.nano.combined <- rbind(Q29.Cop.DRNA, Q29.Cop.DRNA.R,Q36.Cop.DRNA,Q36.Cop.DRNA.R)
+
+directRna.nano.combined
 ```
 
 
@@ -75,68 +77,70 @@ plot
 
 # polyA tail abundance vs. position
 ```{r}
-plot <- ggplot(directRna.nano.combined, aes(x=position, group=temp))+
-   geom_histogram(bins = 500, aes(color=temp))+
-  geom_freqpoly(binwidth = 500, aes(color=temp))+
+ggplot(directRna.nano.combined, aes(x=position))+
+  #  geom_histogram(bins = 500, aes(fill=temp))+
+  # geom_freqpoly(binwidth = 500, aes(color=temp))+
+  geom_line(aes(color=temp),stat  = "count")+
   facet_wrap(vars(sample),ncol =1)+
   theme_bw()+
   theme(axis.text.x = element_text(angle=90))+
   scale_color_manual(values=c("#79aca9", "#ef8354"))+
-  scale_x_continuous(breaks  = seq(0, 4300000, by = 10000), label=comma)+
+  scale_x_continuous(breaks  = seq(0, 4300000, by = 100000), label=comma)+
   scale_y_continuous(label=comma)+
   labs(y="polyA tail abundance")
 
 # plot
-pg <- ggplot_build(plot)
-data.frame(pg$data[[1]]) %>% subset(colour=="#79aca9") %>% subset(y==max(y))
+# pg <- ggplot_build(plot)
+# data.frame(pg$data[[1]]) %>% subset(colour=="#79aca9") %>% subset(y==max(y))
+
 ```
 ### format gtf file (gene annotation from gtf file)
+- formatted gtf file were ran in the python code ```match_biotype_nanopolish.py``` to determine the biotype each read were mapped to
 ```{r}
-user <- "rachel"
-ref <- paste0(paste0("/Users/",user),"/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/reference/")
-gtf_df <- read.csv(paste0(ref,"GCF_000007685.1_ASM768v1_genomic.gtf"),skip=5,sep=c("\t"),header = FALSE) %>% subset(V3 == "gene")
-head(gtf_df)
-tx2gene <- gtf_df %>% mutate(salmon_tax = sapply(V9, function(x){
-    v9=trimws(unlist(strsplit(x,";")))
-    id=unlist(strsplit(v9[1]," ",fixed=TRUE))[2]
-    id
-})) %>% mutate(biotype=sapply(V9, function(x){
-    v9=trimws(unlist(strsplit(x,";")))
-    biotype_index = grep("gene_biotype", v9)
-    current=unlist(strsplit(v9[biotype_index]," ",fixed=TRUE))
-    biotype=ifelse(current[1]=="gene_biotype",current[2],NA)
-    biotype
-})) %>% dplyr::select(c("salmon_tax","biotype", V4, V5)) %>% rename(start=V4, end=V5)
+# user <- "rachel"
+# ref <- paste0(paste0("/Users/",user),"/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/reference/")
+# gtf_df <- read.csv(paste0(ref,"GCF_000007685.1_ASM768v1_genomic.gtf"),skip=5,sep=c("\t"),header = FALSE) %>% subset(V3 == "gene")
+# head(gtf_df)
+# tx2gene <- gtf_df %>% mutate(salmon_tax = sapply(V9, function(x){
+#     v9=trimws(unlist(strsplit(x,";")))
+#     id=unlist(strsplit(v9[1]," ",fixed=TRUE))[2]
+#     id
+# })) %>% mutate(biotype=sapply(V9, function(x){
+#     v9=trimws(unlist(strsplit(x,";")))
+#     biotype_index = grep("gene_biotype", v9)
+#     current=unlist(strsplit(v9[biotype_index]," ",fixed=TRUE))
+#     biotype=ifelse(current[1]=="gene_biotype",current[2],NA)
+#     biotype
+# })) %>% dplyr::select(c("salmon_tax","biotype", V4, V5)) %>% rename(start=V4, end=V5)
 
 # write.csv(tx2gene, "/Users/rachel/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/polyAtail/biotype_position.csv", quote = FALSE, row.names = FALSE)
 ```
 
-### find each poly tail's biotype
+### plot biotype vs. polyA length
 ```{r}
+library(grid)
+library(scales)
+unique(directRna.nano.combined$biotype)
+p1 <- ggplot(directRna.nano.combined, aes(x=biotype, y=log(polya_length)))+
+  geom_violin()+
+  geom_boxplot(width=0.1)+
+  coord_flip()+
+  theme_bw()+
+  theme(axis.text.y = element_blank(),axis.title.y =element_blank())+
+  scale_x_discrete(position = "top")+
+  scale_y_continuous(label=comma)
 
-reads_position <- directRna.nano.combined$position 
+p2 <- ggplot(directRna.nano.combined, aes(x=biotype)) +
+  geom_bar(stat="count", , alpha=0.2)+
+  geom_text(aes(label = ..count..,y= ..count..), stat="count",vjust =-0.5,size=3)+
+  coord_flip()+
+  theme_bw()+
+  theme(axis.title.y =element_blank(),axis.text.y = element_text(hjust=0.5),legend.position = "none")+
+  scale_y_continuous(label=comma)
 
-protein_coding_pos <- tx2gene %>% subset(biotype=="protein_coding")
-
-
-proteinCodingPosIndex <- c() # list of protein-coding reads in read_position vector
-current_read <- 0 # what is the current read index in the loop
-for(i in reads_position){
-  current_read <- current_read + 1 
-  print(current_read)
-  for (j in 1:length(protein_coding_pos[,1])){ # loop through protein_coding dataframe
-    # print(j)
-    if((i >= protein_coding_pos[current_read, "start"]) & (i<= protein_coding_pos[current_read, "end"])){
-      # print(current_read)
-      proteinCodingPosIndex <- c(proteinCodingPosIndex,current_read) # add the index of this read to the record list
-      break
-    }
-  }
-}
-
-reads_position[is.na(reads_position)]
-protein_coding_pos[is.na(protein_coding_pos$start),]
-protein_coding_pos[is.na(protein_coding_pos$end),]
+grid.newpage()
+plot <- grid.draw(cbind(ggplotGrob(p1), ggplotGrob(p2), size = "last"))
+plot
 
 ```
 

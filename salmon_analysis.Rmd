@@ -106,7 +106,7 @@ salmon.deseq <- DESeq(ddsTxi)
 deseq.results <- DESeq2::results(salmon.deseq)
 deseq.results<-deseq.results[order(deseq.results$padj),]
 
-sum(deseq.results$padj < 0.05 , na.rm=TRUE)#61
+sum(deseq.results$padj < 0.05 , na.rm=TRUE)
 head(deseq.results,2)
 ```
 
@@ -172,7 +172,8 @@ ggplot(deseq_salmonDF, aes(x=log2FoldChange,y = -log10(padj)))+
   geom_hline(yintercept=-log10(0.05), col="gray",linetype="dashed")+
   scale_color_manual(values=c("orange", "blue", "black"))+
   geom_text_repel(aes(label=delabel))+
-  labs(x="logs(36C/29C)")
+  labs(x="logs(36C/29C)")+
+  theme(legend.position = "none")
 ```
 
 ```{r}
@@ -206,6 +207,37 @@ ggplot(deseq2ResDF, aes(log2(baseMean), log2FoldChange, colour=significant)) +
 
 
 ```
+### plot gene counts for some differentially expressed genes
+```{r}
+library(grid)
+deseq2ResDF[order(deseq2ResDF$padj),] %>% subset(gene_name == "rlpA")
+deseq2ResDF#%>% subset(gene_name == "dnaA")
+plotCounts(ddsTxi, "gene-LIC_RS11290",main="hsp18(gene-LIC_RS11290)-Upregulated" )
+plotCounts(ddsTxi,"gene-LIC_RS02730", main="dnaK(gene-LIC_RS02730)-Upregulated")
+plotCounts(ddsTxi,"gene-LIC_RS10300", main="clpB(gene-LIC_RS10300)-Upregulated")
+plotCounts(ddsTxi, "gene-LIC_RS19270",main="ltg(gene-LIC_RS19270)-downregulated" )
+plotCounts(ddsTxi,"gene-LIC_RS23235", main="gene-LIC_RS23235-downregulated")
+plotCounts(ddsTxi,"gene-LIC_RS00275", main="rlpA(gene-LIC_RS00275)-downregulated")
+plotCounts(ddsTxi, "gene-LIC_RS00005",main="dnaA(gene-LIC_RS00005)" )
+plotCounts(ddsTxi,"gene-LIC_RS00015", main="recF(gene-LIC_RS00015)")
+plotCounts(ddsTxi,"gene-LIC_RS00025", main="gyrB(gene-LIC_RS00025)")
+
+```
+
+```{r}
+library(goseq)
+rownames(egg_nog) <- egg_nog$V1
+egg_nog_GO <- egg_nog %>% select(c(V7))
+head(egg_nog_GO)
+go_dict <- setNames(split(egg_nog_GO, seq(nrow(egg_nog_GO))), rownames(egg_nog_GO)) 
+
+head(go_dict)
+lapply(go_dict, function(x){
+  print(x)
+  # strsplit(x, ",",fixed=TRUE)
+})
+?goseq
+```
 
 ### heatmap
 ```{r}
@@ -218,15 +250,15 @@ topVarGenes <- head(order(rowVars(assay(rld)), decreasing=T),50)# top 100 genes'
 matrix <- assay(rld)[ topVarGenes, ] # extract genes with top variation aceoss samples
 # which(rownames(matrix) == "gene-LIC_RS02730")
 matrix <- matrix - rowMeans(matrix)
-head(matrix)
+
 colnames(matrix)<- c("Q29.Cop.DRNA.R","Q29.Cop.DRNA", "Q36.Cop.DRNA.R","Q36.Cop.DRNA")
 
 gene_id <- as.data.frame(as.character(rownames(matrix)))
 colnames(gene_id) <- "salmon_tax"
 gene_id <- left_join(gene_id,egg_nog_genename, by="salmon_tax")
-gene_id <- gene_id %>% dplyr::mutate(gene_visual=mapply(function(x,y){ifelse(is.na(x), y, paste(y, x,sep="|"))}, gene_name, salmon_tax)) 
-
+gene_id <- gene_id %>% dplyr::mutate(gene_visual=mapply(function(x,y){ifelse(is.na(x)| x=="", y, paste(y, x,sep="|"))}, gene_name, salmon_tax)) 
 rownames(matrix) <- gene_id$gene_visual
+# write.csv(matrix, "/Users/rachel/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA.Samples.Results/plot.info/heatmap/heatmap.values.csv", quote = FALSE)
 
 # select the 'contrast' you want
 annotation_data <- data.frame("samples"=c(rep("Q29",2), rep("Q36",2)))
@@ -260,6 +292,7 @@ summary(decideTests(qlf))
 
 
 qlf$table$FDR <- p.adjust(qlf$table$PValue, method="BH")
+qlf$table[qlf$table$FDR <0.05,]
 head(qlf$table)
 ```
 
@@ -274,7 +307,14 @@ qlf
 # if with p-value < 0.05 and log2fold change > abs(1), label either up or down regulated 
 edgeR_salmonDF$diffexpressed[edgeR_salmonDF$logFC >= 1 & edgeR_salmonDF$FDR < 0.05] <- "Upregulated"
 edgeR_salmonDF$diffexpressed[edgeR_salmonDF$logFC <= -1 & edgeR_salmonDF$FDR < 0.05] <- "Downregulated"
-edgeR_salmonDF
+
+
+# edgeR_salmonDFOrdered <- edgeR_salmonDF[order(edgeR_salmonDF$FDR),]
+# rownames(edgeR_salmonDFOrdered) <- edgeR_salmonDFOrdered$salmon_tax
+# edgeR_salmonDFOrdered <- edgeR_salmonDFOrdered %>% dplyr::select(-c(salmon_tax))
+# # write.csv(edgeR_salmonDFOrdered, "/Users/rachel/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA.Samples.Results/Diff.Exp.Genes/diff.exp.genes.stats.csv")
+
+
 # factor so legend is ordered
 edgeR_salmonDF$diffexpressed <- factor(edgeR_salmonDF$diffexpressed, levels=c("Upregulated", "Downregulated", "Not differentially expressed"))
 Q29_upregulated_gene <- edgeR_salmonDF %>% subset(diffexpressed == "Upregulated")
@@ -297,6 +337,33 @@ ggplot(edgeR_salmonDF, aes(x=logFC,y = -log10(FDR)))+
   geom_text_repel(aes(label=delabel))+
   labs(x="log2(36C/29C)")+
   theme(legend.position = "none")
+
+```
+### plot gene counts for some differentially expressed genes
+```{r}
+y
+count.df <- data.frame(y$counts)
+
+count.df$salmon_tax <- rownames(count.df)
+count.df.annot <- left_join(edgeR_salmonDF%>%dplyr::select(salmon_tax,gene_name),count.df, by="salmon_tax")
+edgeR_salmonDF
+
+upreg.count <- count.df.annot%>% subset(gene_name == "hsp18" | gene_name == "clpB" | gene_name == "dnaK"| gene_name == "ltg" | gene_name == "rlpA"| gene_name == "carF"| gene_name == "dnaA" | gene_name == "recF"| gene_name == "gyrB")
+upreg.count <- upreg.count %>%
+  mutate(gene_name =  factor(gene_name, levels = c("hsp18","clpB","dnaK","ltg","rlpA","carF","dnaA","recF","gyrB"))) %>%
+  arrange(gene_name) 
+upreg.count$expression <- c(rep("upregulated",3), rep("downregulated",3),rep("Not Significant ",3) )
+upreg.count_longer <- upreg.count %>% pivot_longer(colnames(upreg.count)[-c(1,2,length(upreg.count))], names_to = "sample_name", values_to="count")
+
+upreg.count_longer$temperature <- rep(c(rep("Q29",2), rep("Q36",2)),9)
+upreg.count_longer$replicate <- rep(rep(c("R2","R1"),2),9)
+
+upreg.count_longer
+
+ggplot(upreg.count_longer,aes(x=temperature, y=count,shape=replicate))+
+  geom_point()+
+  facet_wrap(~gene_name+expression,scales = "free_y")
+
 
 ```
 
@@ -371,17 +438,21 @@ kegg.term.list <- kegg_pathway$kegg_id
 # make gene set for each KEGG identifier (all genes identified with the KEGG identifier will be put in a gene set)
 index <- list()
 for(term in kegg.terms.map){
-  index_term <- which(unlist(lapply(salmonkeggDF$KEGG_terms, function(x){ifelse(grepl(term,x), TRUE, FALSE)})))
-  index[[eval(term)]] <- index_term
+  index_term.de <- which(unlist(lapply(salmonkeggDF$KEGG_terms, function(x){ifelse(grepl(term,x), TRUE, FALSE)}))) # get index of the kegg found in de.genes datafrane
+  gene.sets <- salmonkeggDF[c(index_term.de),"salmon_tax"]# return the gene names with kegg term
+  index_term <- as.numeric(unlist(ids2indices(gene.sets , rownames(y$counts), remove.empty=TRUE)))# find the index of these genes in the overall gene dataframe
+  index[[eval(term)]] <- index_term # set into index list
 }
 
+rownames(y) %in% gene.sets
 # only keep KEGG gene sets with more than 4 genes
 kegg.pathway.diffexp <- camera(y, index,design=design) %>% subset(NGenes >=4)
 # order differentially expressed KEGG path base on FDR
 kegg.pathway.diffexp[order(kegg.pathway.diffexp$FDR),]
 kegg.pathway.diffexp$kegg_id <- rownames(kegg.pathway.diffexp)
-left_join(kegg.pathway.diffexp,kegg_pathway)
-
+enriched.kegg <- left_join(kegg.pathway.diffexp,kegg_pathway)
+enriched.kegg
+# write.csv(enriched.kegg, "/Users/rachel/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA.Samples.Results/pathway.goterms.enrichment/kegg.pathway.enrichment.stats.csv",row.names = FALSE)
 
 # left_join(kegg.pathway.diffexp,kegg_pathway) %>% select(-c(PValue.Mixed, FDR.Mixed, kegg_id))
 # kegg_path_FDR_matrix <- head(left_join(kegg.pathway.diffexp,kegg_pathway) #%>% select(FDR,Description),5)
@@ -389,6 +460,13 @@ left_join(kegg.pathway.diffexp,kegg_pathway)
 # kegg_path_FDR_matrix$FDR <- -log10(as.numeric(kegg_path_FDR_matrix$FDR))
 # kegg_path_FDR_matrix <- as.matrix(kegg_path_FDR_matrix %>% select(!Description))
 # pheatmap(kegg_path_FDR_matrix, cluster_cols=FALSE,cluster_rows = FALSE)
+```
+### explore genes in the enriched pathway 
+```{r}
+
+kegg.genes.enriched <- index$ko04212
+
+y$counts[c(kegg.genes.enriched),]
 ```
 
 ###GO term
@@ -428,7 +506,7 @@ go.terms.cc <- go.terms[go.terms %in% names(CC.go)]
 
 index <- list() # assign genes into each GO terms, each GO terms as a gene set
 i=0
-for(term in go.terms.cc){
+for(term in go.terms.bp){
   index_term <- which(unlist(lapply(salmonGODF$GO_terms, function(x){ifelse(grepl(term,x), TRUE, FALSE)})))
   index[[eval(term)]] <- index_term
   i=i+1
@@ -442,7 +520,10 @@ go.diffexp <- camera(y, index,design=design) %>% subset(NGenes >=4)
 go.diffexp$GO_terms <- rownames(go.diffexp)
 go.diffexp <- go.diffexp[order(go.diffexp$FDR),]
 go.diffexp.annot<-left_join(go.diffexp, go.annotation)
-go.diffexp.annot %>% dplyr::select(c(NGenes, Direction, PValue,FDR, GO_terms, goterms))
+go.diffexp.annot
+# go.diffexp.annot %>% dplyr::select(c(NGenes, Direction, PValue,FDR, GO_terms, goterms))
+
+# write.csv(go.diffexp.annot, "/Users/rachel/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA.Samples.Results/pathway.goterms.enrichment/GO.Cellular.Components.Terms.enrichment.csv", row.names = FALSE)
 
 # # if want to test for significance in specific pathway
 # index <- list() # assign genes into each GO terms, each GO terms as a gene set
@@ -464,5 +545,16 @@ go.diffexp.annot %>% dplyr::select(c(NGenes, Direction, PValue,FDR, GO_terms, go
 
 
 
+
+```
+
+### explore genes in the enriched GO Terms
+```{r}
+
+bp.genes.enriched.GO0017148 <- index$`GO:0017148`
+salmonGODF[c(bp.genes.enriched.GO0017148),]
+
+bp.genes.enriched.GO0032269 <- index$`GO:0032269`
+salmonGODF[c(bp.genes.enriched.GO0032269),]
 
 ```
