@@ -18,7 +18,7 @@ library(tidyr)
 
 # list samples, read int metadata
 ```{r}
-user <- "rachel"
+user <- "rx32940"
 
 
 dir <- paste0(paste0("/Users/",user),"/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/")
@@ -114,7 +114,7 @@ head(deseq.results,2)
 ```{r}
 ddsTxi
 rlg <- rlog(ddsTxi,blind = TRUE)
-pcaData <- plotPCA(rlg,ntop=3736,returnData=TRUE)
+pcaData <- plotPCA(rlg,returnData=TRUE)
 pcaData$Repeat <- c(rep(c("R2", "R1"),2))
 pcaData
 percentVar <- round(100 * attr(pcaData, "percentVar"))
@@ -136,6 +136,8 @@ resultsNames(salmon.deseq)
 
 res_lfcShrink_salmon <- lfcShrink(salmon.deseq,coef = 2, type="apeglm")
 sum(res_lfcShrink_salmon$padj < 0.05 , na.rm=TRUE)
+
+plotDispEsts(salmon.deseq)
 
 ```
 
@@ -224,19 +226,88 @@ plotCounts(ddsTxi,"gene-LIC_RS00025", main="gyrB(gene-LIC_RS00025)")
 
 ```
 
+
+# GOseq
+
+### format gene2go list with matching GO terms
 ```{r}
 library(goseq)
-rownames(egg_nog) <- egg_nog$V1
-egg_nog_GO <- egg_nog %>% select(c(V7))
+egg_nog
+egg_nog_GO <- egg_nog %>% mutate(gene_name=sapply(V1, function(x){
+  unlist(strsplit(x, "-"))[2]
+}))%>% dplyr::select(c(gene_name, V7))
 head(egg_nog_GO)
-go_dict <- setNames(split(egg_nog_GO, seq(nrow(egg_nog_GO))), rownames(egg_nog_GO)) 
+go_dict <- setNames(split(egg_nog_GO, seq(nrow(egg_nog_GO))), egg_nog_GO$gene_name)
 
-head(go_dict)
-lapply(go_dict, function(x){
-  print(x)
-  # strsplit(x, ",",fixed=TRUE)
+go_gene2cat <- sapply(go_dict, function(item){
+  go.char.vec <- ifelse(item$V7 != "", strsplit(item$V7, ",", fixed = TRUE), NA)
 })
-?goseq
+
+head(go_gene2cat,2)
+
+```
+
+### format gene2go list with matching KEGG terms
+```{r}
+library(goseq)
+egg_nog
+egg_nog_KEGG <- egg_nog %>% mutate(gene_name=sapply(V1, function(x){
+  unlist(strsplit(x, "-"))[2]
+}))%>% dplyr::select(c(gene_name, V10))
+head(egg_nog_KEGG)
+go_dict <- setNames(split(egg_nog_KEGG, seq(nrow(egg_nog_KEGG))), egg_nog_KEGG$gene_name)
+
+kegg_gene2cat <- sapply(go_dict, function(item){
+  go.char.vec <- ifelse(item$V10 != "", strsplit(item$V10, ",", fixed = TRUE), NA)
+})
+
+
+head(go_gene2cat,2)
+
+```
+
+### format length of each gene
+```{r}
+library(GenomicFeatures)
+
+txdb <- makeTxDbFromGFF(paste0(ref,"GCF_000007685.1_ASM768v1_genomic.gff"), circ_seqs=c("NC_005823.1","NC_005824.1"))
+txsByGene <- transcriptsBy(txdb,c("gene", "exon", "cds"))
+lengthData <-  median(width(txsByGene))
+
+head(lengthData)
+
+```
+
+### use go seq to identify the most enriched pathway
+```{r}
+
+  deseq2ResDF <- deseq2ResDF %>% mutate(gene_name = sapply(salmon_tax, function(x){
+  unlist(strsplit(x, "-"))[2]
+})) %>% subset(gene_name %in% names(lengthData))
+
+assay.genes <-unname(deseq2ResDF$gene_name)
+length(assay.genes)
+de.genes <- deseq2ResDF %>% subset(padj < 0.05) %>% dplyr::select(gene_name)
+de.genes <- as.character(de.genes$gene_name)
+deseq2ResDF %>% subset(padj < 0.05) %>% dplyr::select(gene_name)
+genes <- ifelse(assay.genes %in% de.genes, 1, 0)
+genes
+head(lengthData)
+head(assay.genes)
+pwf=nullp(genes, bias.data=lengthData)
+
+rownames(pwf) <- names(lengthData) 
+
+
+pwf
+length(go_gene2cat)
+goseq_res <- goseq(pwf,gene2cat = go_gene2cat,use_genes_without_cat=TRUE)
+goseq_res_BP <- goseq_res %>% subset(ontology == "BP")
+goseq_res_BP$padj <- p.adjust(goseq_res_BP$over_represented_pvalue,method="BH")
+
+
+goseq_res_BP[order(goseq_res_BP$padj),] 
+
 ```
 
 ### heatmap
@@ -338,19 +409,23 @@ ggplot(edgeR_salmonDF, aes(x=logFC,y = -log10(FDR)))+
   labs(x="log2(36C/29C)")+
   theme(legend.position = "none")
 
+
 ```
 ### plot gene counts for some differentially expressed genes
 ```{r}
-y
-count.df <- data.frame(y$counts)
+# cpm(y, normalized=TRUE)
 
+edgeR_salmonDFDR <-  edgeR_salmonDF %>% subset(diffexpressed == "Downregulated")
+edgeR_salmonDFDR[order(edgeR_salmonDFDR$FDR),]
+count.df <- data.frame(cpm(y, normalized.lib.sizes = TRUE))
+count.df
 count.df$salmon_tax <- rownames(count.df)
 count.df.annot <- left_join(edgeR_salmonDF%>%dplyr::select(salmon_tax,gene_name),count.df, by="salmon_tax")
 edgeR_salmonDF
 
-upreg.count <- count.df.annot%>% subset(gene_name == "hsp18" | gene_name == "clpB" | gene_name == "dnaK"| gene_name == "ltg" | gene_name == "rlpA"| gene_name == "carF"| gene_name == "dnaA" | gene_name == "recF"| gene_name == "gyrB")
+upreg.count <- count.df.annot%>% subset(gene_name == "hsp18" | gene_name == "clpB" | gene_name == "dnaK"| gene_name == "ltg" | gene_name == "rlpA"| gene_name == "ftsK"| gene_name == "dnaA" | gene_name == "recF"| gene_name == "gyrB")
 upreg.count <- upreg.count %>%
-  mutate(gene_name =  factor(gene_name, levels = c("hsp18","clpB","dnaK","ltg","rlpA","carF","dnaA","recF","gyrB"))) %>%
+  mutate(gene_name =  factor(gene_name, levels = c("hsp18","clpB","dnaK","ltg","rlpA","ftsK","dnaA","recF","gyrB"))) %>%
   arrange(gene_name) 
 upreg.count$expression <- c(rep("upregulated",3), rep("downregulated",3),rep("Not Significant ",3) )
 upreg.count_longer <- upreg.count %>% pivot_longer(colnames(upreg.count)[-c(1,2,length(upreg.count))], names_to = "sample_name", values_to="count")
@@ -362,7 +437,9 @@ upreg.count_longer
 
 ggplot(upreg.count_longer,aes(x=temperature, y=count,shape=replicate))+
   geom_point()+
-  facet_wrap(~gene_name+expression,scales = "free_y")
+  facet_wrap(~gene_name+expression,scales = "free_y")+
+  theme_bw() +
+  labs(x="Normalized Counts Per Million (Counts)")
 
 
 ```
@@ -405,6 +482,41 @@ head(edgeR2ResDF)
 
 
 # GO and KEGG annotation
+
+### use go seq to identify the most enriched pathway
+```{r}
+
+  edgeR2ResDFGO <- edgeR2ResDF %>% mutate(gene_tax = sapply(salmon_tax, function(x){
+  unlist(strsplit(x, "-"))[2]
+})) %>% subset(gene_tax %in% names(lengthData))
+edgeR2ResDFGO
+assay.genes <-unname(edgeR2ResDFGO$gene_tax)
+assay.genes
+de.genes <- edgeR2ResDFGO %>% subset(FDR < 0.05) %>% dplyr::select(gene_tax)
+de.genes <- unname(de.genes$gene_tax)
+genes <- ifelse(assay.genes %in% de.genes, 1, 0)
+genes
+length(lengthData)
+head(assay.genes)
+
+lengthDataEDGER <- lengthData[names(lengthData) %in% assay.genes]# genes in names(lengthData), but not in edgeR analyzed genes
+length(lengthDataEDGER)
+pwf=nullp(genes, bias.data=lengthDataEDGER )
+
+rownames(pwf) <- names(lengthDataEDGER) 
+
+
+pwf
+length(go_gene2cat)
+goseq_res <- goseq(pwf,gene2cat = go_gene2cat)
+goseq_res_BP <- goseq_res %>% subset(ontology == "BP")
+goseq_res_BP$padj <- p.adjust(goseq_res_BP$over_represented_pvalue,method="BH")
+goseq_res$padj <- p.adjust(goseq_res$over_represented_pvalue,method="BH")
+
+goseq_res_BP[order(goseq_res_BP$padj),] 
+goseq_res[order(goseq_res$padj),]
+
+```
 
 ###KEGG term
 ```{r}
