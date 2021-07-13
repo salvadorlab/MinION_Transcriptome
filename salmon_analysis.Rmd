@@ -97,7 +97,7 @@ salmon_direct_meta <- direct_rna_meta[,c("samples","condition")]
 library("DESeq2")
 ddsTxi <- DESeqDataSetFromTximport(txi,
                                    colData = salmon_direct_meta,
-                                  samples ~ condition)
+                                   ~ condition)
 
 ddsTxi$condition <- relevel(ddsTxi$condition, ref="Q29")
 
@@ -249,20 +249,24 @@ head(go_gene2cat,2)
 
 ### format gene2go list with matching KEGG terms
 ```{r}
-library(goseq)
-egg_nog
+
+
 egg_nog_KEGG <- egg_nog %>% mutate(gene_name=sapply(V1, function(x){
   unlist(strsplit(x, "-"))[2]
 }))%>% dplyr::select(c(gene_name, V10))
 head(egg_nog_KEGG)
-go_dict <- setNames(split(egg_nog_KEGG, seq(nrow(egg_nog_KEGG))), egg_nog_KEGG$gene_name)
+kegg_dict <- setNames(split(egg_nog_KEGG, seq(nrow(egg_nog_KEGG))), egg_nog_KEGG$gene_name)
 
-kegg_gene2cat <- sapply(go_dict, function(item){
+kegg_gene2cat <- sapply(kegg_dict, function(item){
   go.char.vec <- ifelse(item$V10 != "", strsplit(item$V10, ",", fixed = TRUE), NA)
 })
 
+for (item in head(kegg_gene2cat)){
+  print(item)
+}
 
-head(go_gene2cat,2)
+ko_gene2cat <- unstack(stack(kegg_gene2cat)[grepl("map",stack(kegg_gene2cat)$values, fixed = TRUE),])
+head(ko_gene2cat,2)
 
 ```
 
@@ -271,14 +275,14 @@ head(go_gene2cat,2)
 library(GenomicFeatures)
 
 txdb <- makeTxDbFromGFF(paste0(ref,"GCF_000007685.1_ASM768v1_genomic.gff"), circ_seqs=c("NC_005823.1","NC_005824.1"))
-txsByGene <- transcriptsBy(txdb,c("gene", "exon", "cds"))
+txsByGene <- transcriptsBy(txdb,"gene")
 lengthData <-  median(width(txsByGene))
 
 head(lengthData)
 
 ```
 
-### use go seq to identify the most enriched pathway
+### use go seq to identify the most enriched GO terms
 ```{r}
 
   deseq2ResDF <- deseq2ResDF %>% mutate(gene_name = sapply(salmon_tax, function(x){
@@ -302,7 +306,7 @@ rownames(pwf) <- names(lengthData)
 pwf
 length(go_gene2cat)
 goseq_res <- goseq(pwf,gene2cat = go_gene2cat,use_genes_without_cat=TRUE)
-goseq_res_BP <- goseq_res %>% subset(ontology == "BP")
+goseq_res_BP <- goseq_res %>% subset(!(numDEInCat <= 4))%>% subset(ontology == "BP") 
 goseq_res_BP$padj <- p.adjust(goseq_res_BP$over_represented_pvalue,method="BH")
 
 
@@ -421,8 +425,8 @@ count.df <- data.frame(cpm(y, normalized.lib.sizes = TRUE))
 count.df
 count.df$salmon_tax <- rownames(count.df)
 count.df.annot <- left_join(edgeR_salmonDF%>%dplyr::select(salmon_tax,gene_name),count.df, by="salmon_tax")
-edgeR_salmonDF
 
+# write.csv(count.df.annot, "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA.Samples.Results/Diff.Exp.Genes/normalized.gene.counts.allgenes.DRNA.edgeR.csv")
 upreg.count <- count.df.annot%>% subset(gene_name == "hsp18" | gene_name == "clpB" | gene_name == "dnaK"| gene_name == "ltg" | gene_name == "rlpA"| gene_name == "ftsK"| gene_name == "dnaA" | gene_name == "recF"| gene_name == "gyrB")
 upreg.count <- upreg.count %>%
   mutate(gene_name =  factor(gene_name, levels = c("hsp18","clpB","dnaK","ltg","rlpA","ftsK","dnaA","recF","gyrB"))) %>%
@@ -439,9 +443,9 @@ ggplot(upreg.count_longer,aes(x=temperature, y=count,shape=replicate))+
   geom_point()+
   facet_wrap(~gene_name+expression,scales = "free_y")+
   theme_bw() +
-  labs(x="Normalized Counts Per Million (Counts)")
+  labs(y="Normalized Counts Per Million (Counts)")
 
-
+count.df.annot %>% subset(salmon_tax=="gene-LIC_RS11285")
 ```
 
 
@@ -463,7 +467,7 @@ edgeR2ResDF <- as.data.frame(qlf)
 head(edgeR2ResDF)
 
 # Set a boolean column for significance
-edgeR2ResDF$significant <- ifelse(edgeR2ResDF$FDR < .05, "Significant",NA)
+edgeR2ResDF$significant <- ifelse((edgeR2ResDF$FDR < .05 & (edgeR_salmonDF$logFC >= 1 | edgeR_salmonDF$logFC <= -1)), "Significant",NA)
 edgeR2ResDF$salmon_tax <- rownames(edgeR2ResDF)
 edgeR2ResDF <- left_join(edgeR2ResDF, egg_nog_genename,by="salmon_tax")
 edgeR2ResDF$delabel <- NA
@@ -483,38 +487,37 @@ head(edgeR2ResDF)
 
 # GO and KEGG annotation
 
-### use go seq to identify the most enriched pathway
+### use go seq to identify the most enriched Go terms
 ```{r}
 
   edgeR2ResDFGO <- edgeR2ResDF %>% mutate(gene_tax = sapply(salmon_tax, function(x){
   unlist(strsplit(x, "-"))[2]
 })) %>% subset(gene_tax %in% names(lengthData))
-edgeR2ResDFGO
+
 assay.genes <-unname(edgeR2ResDFGO$gene_tax)
-assay.genes
+
 de.genes <- edgeR2ResDFGO %>% subset(FDR < 0.05) %>% dplyr::select(gene_tax)
 de.genes <- unname(de.genes$gene_tax)
 genes <- ifelse(assay.genes %in% de.genes, 1, 0)
-genes
-length(lengthData)
-head(assay.genes)
+
+
 
 lengthDataEDGER <- lengthData[names(lengthData) %in% assay.genes]# genes in names(lengthData), but not in edgeR analyzed genes
-length(lengthDataEDGER)
+
 pwf=nullp(genes, bias.data=lengthDataEDGER )
 
 rownames(pwf) <- names(lengthDataEDGER) 
 
 
-pwf
+
 length(go_gene2cat)
-goseq_res <- goseq(pwf,gene2cat = go_gene2cat)
-goseq_res_BP <- goseq_res %>% subset(ontology == "BP")
+goseq_res <- goseq(pwf,gene2cat = go_gene2cat, use_genes_without_cat=TRUE)
+goseq_res_BP <- goseq_res %>% subset(!(numDEInCat <= 4))%>% subset(ontology == "BP")
 goseq_res_BP$padj <- p.adjust(goseq_res_BP$over_represented_pvalue,method="BH")
-goseq_res$padj <- p.adjust(goseq_res$over_represented_pvalue,method="BH")
+
 
 goseq_res_BP[order(goseq_res_BP$padj),] 
-goseq_res[order(goseq_res$padj),]
+
 
 ```
 
@@ -526,45 +529,53 @@ head(egg_nog)
 
 # select KEGG pathway column from eggnog output
 egg_nog_kegg <-  egg_nog %>% dplyr::select(c(V1,V10)) %>% dplyr::rename("salmon_tax"=V1,"KEGG_terms" =V10)
+
 # get DEG genes
 edgeR2ResDF_DEG <- edgeR2ResDF %>% subset(FDR < 0.05)
-# merge gene name edgeR result with eggnog kegg pathway
+
+# merge gene name edgeR result with eggnog kegg pathway 
 salmonkeggDF<- left_join(edgeR2ResDF_DEG,egg_nog_kegg,by="salmon_tax")
-# get all KEGG terms for all genes
+
+head(salmonkeggDF,2)
+
+# get all KEGG terms for all genes(remove genes without kegg mapped)
 kegg.terms <- salmonkeggDF[!is.na(salmonkeggDF$KEGG_terms) & salmonkeggDF$KEGG_terms != "",]$KEGG_terms
 # get unique KEGG terms for genes identified in samples
 kegg.terms <- unique(unlist(sapply(kegg.terms,function(x){unlist(strsplit(x,split=","))})))
 
-# only keep kegg terms with "ko" identifier, ignore kegg pathwat with "map" identifiers (overlapped)
+# only keep kegg terms with "map" identifier
 kegg.terms.map <- kegg.terms[sapply(kegg.terms, function(x){
-  grepl("ko",x)
+  grepl("map",x)
 })]
+head(kegg.terms.map,2)
 
-
-# remove the "path:" in front of every KEGG identifier
-kegg_pathway <- getKEGGPathwayNames(species.KEGG="ko") %>% mutate(kegg_id=sapply(PathwayID, function(x){
+# get names of KEGG path (KEGGREST), and remove the "path:" in front of every KEGG identifier
+kegg_pathway <- getKEGGPathwayNames(species.KEGG="map") %>% mutate(kegg_id=sapply(PathwayID, function(x){
   unlist(strsplit(x, split=":"))[2]
 }))
-kegg.term.list <- kegg_pathway$kegg_id
+kegg.term.list <- kegg_pathway$kegg_id # get all kegg(map id) in a list
+
+kegg.terms.map <- kegg.terms.map[!kegg.terms.map %in% c(setdiff(kegg.terms.map, kegg.term.list))] # remove map ide that counln't be retrived from KEGG databases
 
 # make gene set for each KEGG identifier (all genes identified with the KEGG identifier will be put in a gene set)
-index <- list()
-for(term in kegg.terms.map){
+index <- list() 
+for(term in kegg.terms.map){ # loop through all kegg(map) ids identified in the reference genome
   index_term.de <- which(unlist(lapply(salmonkeggDF$KEGG_terms, function(x){ifelse(grepl(term,x), TRUE, FALSE)}))) # get index of the kegg found in de.genes datafrane
   gene.sets <- salmonkeggDF[c(index_term.de),"salmon_tax"]# return the gene names with kegg term
-  index_term <- as.numeric(unlist(ids2indices(gene.sets , rownames(y$counts), remove.empty=TRUE)))# find the index of these genes in the overall gene dataframe
+  index_term <- as.numeric(unlist(ids2indices(gene.sets, rownames(y$counts), remove.empty=TRUE)))# find the index of these genes in the overall gene dataframe
   index[[eval(term)]] <- index_term # set into index list
 }
 
-rownames(y) %in% gene.sets
+# gene.sets %in% rownames(y) # if the current gene_set an element of y$count. y$count is exactly same with edgeR2ResDF$salmon_tax
+
 # only keep KEGG gene sets with more than 4 genes
-kegg.pathway.diffexp <- camera(y, index,design=design) %>% subset(NGenes >=4)
+kegg.pathway.diffexp <- camera(y, index,design=design) %>% subset(NGenes >4)
 # order differentially expressed KEGG path base on FDR
 kegg.pathway.diffexp[order(kegg.pathway.diffexp$FDR),]
 kegg.pathway.diffexp$kegg_id <- rownames(kegg.pathway.diffexp)
-enriched.kegg <- left_join(kegg.pathway.diffexp,kegg_pathway)
+enriched.kegg <- left_join(kegg.pathway.diffexp,kegg_pathway) 
 enriched.kegg
-# write.csv(enriched.kegg, "/Users/rachel/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA.Samples.Results/pathway.goterms.enrichment/kegg.pathway.enrichment.stats.csv",row.names = FALSE)
+# write.csv(enriched.kegg, "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA.Samples.Results/pathway.goterms.enrichment/kegg.pathway.enrichment.stats.csv",row.names = FALSE)
 
 # left_join(kegg.pathway.diffexp,kegg_pathway) %>% select(-c(PValue.Mixed, FDR.Mixed, kegg_id))
 # kegg_path_FDR_matrix <- head(left_join(kegg.pathway.diffexp,kegg_pathway) #%>% select(FDR,Description),5)
@@ -572,13 +583,23 @@ enriched.kegg
 # kegg_path_FDR_matrix$FDR <- -log10(as.numeric(kegg_path_FDR_matrix$FDR))
 # kegg_path_FDR_matrix <- as.matrix(kegg_path_FDR_matrix %>% select(!Description))
 # pheatmap(kegg_path_FDR_matrix, cluster_cols=FALSE,cluster_rows = FALSE)
+
 ```
 ### explore genes in the enriched pathway 
 ```{r}
 
-kegg.genes.enriched <- index$ko04212
+# kegg.genes.enriched <- index$map03010
+# # y$counts[c(kegg.genes.enriched),]
+# map03010 <- edgeR2ResDF[c(kegg.genes.enriched),]%>% select(-c(significant,delabel))
+# map03010
+# # write.csv(map03010, "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA.Samples.Results/pathway.goterms.enrichment/Genes.Enriched.In.KEGG/map03010.csv",row.names = FALSE)
+# 
+# kegg.genes.enriched <- index$map00860
+# 
+# map00860 <- edgeR2ResDF[c(kegg.genes.enriched),]%>% select(-c(significant,delabel))
+# 
+# write.csv(map00860, "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA.Samples.Results/pathway.goterms.enrichment/Genes.Enriched.In.KEGG/map00860.csv",row.names = FALSE)
 
-y$counts[c(kegg.genes.enriched),]
 ```
 
 ###GO term
@@ -586,11 +607,17 @@ y$counts[c(kegg.genes.enriched),]
 library(GO.db)
 
 head(egg_nog)
+
 egg_nog_go <-  egg_nog %>% dplyr::select(c(V1,V7)) %>% dplyr::rename("salmon_tax"=V1,"GO_terms" =V7)
+
 edgeR2ResDF_DEG <- edgeR2ResDF %>% subset(FDR < 0.05)
+
 salmonGODF<- left_join(edgeR2ResDF_DEG,egg_nog_go,by="salmon_tax")
+
 go.terms <- salmonGODF[!is.na(salmonGODF$GO_terms) & salmonGODF$GO_terms != "",]$GO_terms
+
 go.terms <- unique(unlist(sapply(go.terms,function(x){unlist(strsplit(x,split=","))})))
+
 length(go.terms)
 
 zz = Ontology(GOTERM)
@@ -617,56 +644,52 @@ go.terms.cc <- go.terms[go.terms %in% names(CC.go)]
 
 
 index <- list() # assign genes into each GO terms, each GO terms as a gene set
-i=0
-for(term in go.terms.bp){
-  index_term <- which(unlist(lapply(salmonGODF$GO_terms, function(x){ifelse(grepl(term,x), TRUE, FALSE)})))
+for(term in go.terms.mf){
+  index_term.gode <- which(unlist(lapply(salmonGODF$GO_terms, function(x){ifelse(grepl(term,x), TRUE, FALSE)})))
+  gene.sets.go <- salmonGODF[c(index_term.gode),"salmon_tax"]# return the gene names with GO term
+  index_term <- as.numeric(unlist(ids2indices(gene.sets.go, rownames(y$counts), remove.empty=TRUE)))# find the index of these genes in the overall gene dataframe
   index[[eval(term)]] <- index_term
-  i=i+1
-  # print(i)
 }
 
 
 
 # test the gene set (go term that is enriched), MF only 
-go.diffexp <- camera(y, index,design=design) %>% subset(NGenes >=4)
+go.diffexp <- camera(y, index,design=design) %>% subset(NGenes >4)
 go.diffexp$GO_terms <- rownames(go.diffexp)
 go.diffexp <- go.diffexp[order(go.diffexp$FDR),]
 go.diffexp.annot<-left_join(go.diffexp, go.annotation)
 go.diffexp.annot
-# go.diffexp.annot %>% dplyr::select(c(NGenes, Direction, PValue,FDR, GO_terms, goterms))
-
-# write.csv(go.diffexp.annot, "/Users/rachel/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA.Samples.Results/pathway.goterms.enrichment/GO.Cellular.Components.Terms.enrichment.csv", row.names = FALSE)
-
-# # if want to test for significance in specific pathway
-# index <- list() # assign genes into each GO terms, each GO terms as a gene set
-# i=0
-# GO.interest <- c("GO:0045260", "GO:0043590")
-# for(term in GO.interest){
-#   index_term <- which(unlist(lapply(salmonGODF$GO_terms, function(x){ifelse(grepl(term,x), TRUE, FALSE)})))
-#   index[[eval(term)]] <- index_term
-#   i=i+1
-#   # print(i)
-# }
-# 
-# # test the gene set (go term that is enriched), MF only 
-# go.diffexp <- fry(y, index,design=design) %>% subset(NGenes >=4)
-# go.diffexp$GO_terms <- rownames(go.diffexp)
-# go.diffexp <- go.diffexp[order(go.diffexp$FDR),]
-# go.diffexp.annot<-left_join(go.diffexp, go.annotation)
-# go.diffexp.annot %>% dplyr::select(c(NGenes, Direction, PValue,FDR, GO_terms, goterms))
 
 
+# write.csv(go.diffexp.annot, "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA.Samples.Results/pathway.goterms.enrichment/GO.MF.enrichment.stats.csv",row.names = FALSE)
 
+```
 
+### Revigo to remove redunt GO terms
+```{r}
+# # all GO terms BP with FDR lower than 0.05 was fed into Revigo to remove redundancy
+revigo.go.bp <- read.csv("/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA.Samples.Results/pathway.goterms.enrichment/redundant.GO.BP.revigo.csv") # Revigo to remove redundant GO terms
+
+revigo.go.bp
+revigo.go.bp <- revigo.go.bp %>% rename(GO_terms=TermID)%>%subset(Eliminated == " False")
+revigo.go.bp <- left_join(revigo.go.bp, go.diffexp.annot[,c("GO_terms", "FDR")], by="GO_terms") # add FDR of each GO term to Revigo output
+
+revigo.go.bp <- revigo.go.bp[order(revigo.go.bp$FDR, decreasing = FALSE),]
+revigo.go.bp
+
+# write.csv(revigo.go.bp, "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA.Samples.Results/redundant.removed.GO.BP.revigo.csv",row.names = FALSE)
 ```
 
 ### explore genes in the enriched GO Terms
 ```{r}
+go.diffexp.annot[go.diffexp.annot$FDR < 0.05,]$GO_terms
 
-bp.genes.enriched.GO0017148 <- index$`GO:0017148`
-salmonGODF[c(bp.genes.enriched.GO0017148),]
+
+bp.genes.enriched.GO0043604 <- index$`GO:0043604`
+# y$counts[c(bp.genes.enriched.GO0017148),] # same order, extract same genes
+edgeR2ResDF[c(bp.genes.enriched.GO0043604),]
 
 bp.genes.enriched.GO0032269 <- index$`GO:0032269`
-salmonGODF[c(bp.genes.enriched.GO0032269),]
+edgeR2ResDF[c(bp.genes.enriched.GO0032269),]
 
 ```

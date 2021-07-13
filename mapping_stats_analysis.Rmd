@@ -14,16 +14,16 @@ library(gridExtra)
 library(scales)
 library(readr)
 
-polyapath <- "/Users/rachel/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/polyAtail"
+polyapath <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/polyAtail"
 ```
 # example code
 https://www.biostars.org/p/412621/s
 ```{r}
 
 
-samples <- c("Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail","Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_PolyATail", "Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_Qiagen_NoPolyATail","Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA","Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA","Q29_Copenhageni_Basecalled-June_11_2020_Repeat_Direct-RNA", "Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA")
+samples <- c("Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA","Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA","Q29_Copenhageni_Basecalled-June_11_2020_Repeat_Direct-RNA", "Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA")
 
-samp_ab <- c("Cop.NoPolyA","Cop.PolyA", "Cop.Q.NoPolyA","Q29.Cop.DRNA","Q36.Cop.DRNA", "Q29.Cop.DRNA.R","Q36.Cop.DRNA.R")
+samp_ab <- c("Q29.Cop.DRNA","Q36.Cop.DRNA", "Q29.Cop.DRNA.R","Q36.Cop.DRNA.R")
 
 total.reads<- data.frame(sample=c(), total.reads=c())
 
@@ -92,7 +92,7 @@ map.stats.combined
 map.stats.longer <- pivot_longer(map.stats.combined, cols = c("total.reads", "mapped.reads.genome", "mapped.reads.trans"), names_to = "primary.alignment.stats", values_to = "Number")
 map.stats.longer$Number <- as.numeric(map.stats.longer$Number)
 map.stats.longer$primary.alignment.stats <- factor(map.stats.longer$primary.alignment.stats, levels = c("total.reads", "mapped.reads.genome", "mapped.reads.trans"))
-map.stats.longer$sample <- factor(map.stats.longer$sample, levels=c("Cop.NoPolyA", "Cop.Q.NoPolyA","Cop.PolyA","Q29.Cop.DRNA","Q36.Cop.DRNA", "Q29.Cop.DRNA.R","Q36.Cop.DRNA.R"))
+map.stats.longer$sample <- factor(map.stats.longer$sample, levels=c("Q29.Cop.DRNA","Q29.Cop.DRNA.R","Q36.Cop.DRNA", "Q36.Cop.DRNA.R"))
 # kable(total.reads, caption="Total Number of Reads")
 
 ggplot(map.stats.longer, aes(x= sample, y= Number))+
@@ -101,7 +101,7 @@ ggplot(map.stats.longer, aes(x= sample, y= Number))+
   theme(axis.text.x = element_text(angle = 90))+
   scale_y_continuous(label=comma)+
   labs(y="Number of Reads")+
-  scale_color_manual(values=c("gray", "orange", "blue"))
+  scale_fill_manual(values=c("gray", "orange", "blue"))
   
 ```
 
@@ -114,15 +114,15 @@ map.flag.longer$Number <- as.numeric(map.flag.longer$Number)
 
 map.flag.longer$`Non-primary.alignment.stats` <- factor(map.flag.longer$`Non-primary.alignment.stats`, levels = c("secondary.alignment", "secondary.alignment.trans", "supplementary.alignment", "supplementary.alignment.trans"))
 map.flag.longer
-map.flag.longer$Reference <- rep(c("genome", "transcriptome"),14)
-map.flag.longer$align_type <- rep(c(rep("secondary",2),rep("supplementary",2)),7)
+map.flag.longer$Reference <- rep(c("genome", "transcriptome"),8)
+map.flag.longer$align_type <- rep(c(rep("secondary",2),rep("supplementary",2)),4)
 map.flag.longer
 
 proportion <- ifelse(map.flag.longer$Reference == "genome",map.flag.longer$Number/as.numeric(map.flag.longer$mapped.reads.genome), map.flag.longer$Number/as.numeric(map.flag.longer$mapped.reads.trans))
 
 map.flag.longer$proportion <- proportion
 
-map.flag.longer$sample <- factor(map.flag.longer$sample, levels=c("Cop.NoPolyA", "Cop.Q.NoPolyA","Cop.PolyA","Q29.Cop.DRNA","Q36.Cop.DRNA", "Q29.Cop.DRNA.R","Q36.Cop.DRNA.R"))
+map.flag.longer$sample <- factor(map.flag.longer$sample, levels=c("Q29.Cop.DRNA","Q29.Cop.DRNA.R","Q36.Cop.DRNA", "Q36.Cop.DRNA.R"))
 
 
 
@@ -156,7 +156,7 @@ p <- ggplot(read.length %>% subset(as.numeric(`Read Length`) < 5000), aes(x= as.
   geom_line(aes(color=sample))+
   theme_bw()+
   labs(x="Read Length", y="Frequency")
-
+p
 ggplotly(p)
 ```
 
