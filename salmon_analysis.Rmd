@@ -18,7 +18,7 @@ library(tidyr)
 
 # list samples, read int metadata
 ```{r}
-user <- "rx32940"
+user <- "rachel"
 
 
 dir <- paste0(paste0("/Users/",user),"/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/")
