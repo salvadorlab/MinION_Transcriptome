@@ -1,0 +1,207 @@
+---
+title: "tailfindr_analysis"
+author: "Rachel Xu"
+date: "8/3/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+
+library(dplyr)
+```
+
+
+```{r}
+tailfindr.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/polyATail_cDNA_Copen_072021/"
+
+
+
+transcript.annot <- read.csv(file.path(tailfindr.path, "reference","GCF_000007685.1_ASM768v1_feature_table.txt"), sep="\t") %>% subset(X..feature == "CDS") %>% select(-c("X..feature", "class", "assembly", "assembly_unit", "seq_type", "related_accession", "GeneID", "locus_tag","attributes"))
+
+```
+
+# Copenhagni No PolyA tail added
+
+### MAP to Genome
+```{r}
+copenNoPolyA_g <- read.csv(file.path(tailfindr.path, "tailfindr","noPolyA","copenhageni_noPolyA.annotated.csv"))
+# copenNoPolyA
+# copenNoPolyA_bed <- read.csv(file.path(tailfindr.path, "tailfindr","noPolyA","Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail.bed"), sep="\t",header = FALSE)
+# copenNoPolyA_bed
+# colnames(copenNoPolyA_bed) <- c("genomic_accession", "map_start", "map_end", "read_id", "mapping_quality_sam", "strand")
+#  
+# copenNoPolyA_bed
+# copenNoPolyA
+copenNoPolyA_annot_g <- copenNoPolyA_g#left_join(copenNoPolyA, copenNoPolyA_bed, by=c("read_id")) %>% select(-c(file_path))
+
+copenNoPolyA_annot_g #%>% subset(read_type != "invalid") %>% subset(read_type == "polyA") #%>% subset(tail_is_valid == TRUE)
+
+
+# Summary statistics
+copenNoPolyA_annot_genome_stat <- copenNoPolyA_annot_g  %>% group_by(read_type,tail_is_valid) %>%summarise(read_type_num=n()) #%>% subset(tail_is_valid == TRUE)
+copenNoPolyA_annot_genome_stat$Sample <- "copenNoPolyA"
+copenNoPolyA_annot_genome_stat$Map_To <- "Genome"
+# write.csv(copenNoPolyA_annot, file.path(tailfindr.path, "tailfindr","noPolyA", "copenhageni_noPolyA.final.csv"))
+
+
+# tail length distribution
+copenNoPolyA_tailLen_g
+copenNoPolyA_tailLen_g <-copenNoPolyA_annot_g %>% subset(!is.na(tail_length)) %>% select(c(read_type, tail_is_valid, tail_length))
+copenNoPolyA_tailLen_g$Sample <- "copenNoPolyA"
+copenNoPolyA_tailLen_g$Map_To <- "Genome"
+
+```
+
+
+### MAP to Transcriptome
+```{r}
+copenNoPolyA_t <- read.csv(file.path(tailfindr.path, "tailfindr","noPolyA","copenhageni_noPolyA.annotated.trans.csv"))
+copenNoPolyA_acc <-  copenNoPolyA_t %>% 
+  select(-c(file_path)) %>% mutate(product_accession=sapply(transcript_id, function(x){
+    paste0("WP_",unlist(strsplit(x,"_", fixed = TRUE))[5]) 
+  })) %>% mutate(genomic_accession = sapply(transcript_id, function(x){
+    paste0("NC_",unlist(strsplit(x,"_", fixed = TRUE))[2]) 
+  })) %>% select(-c(transcript_id))
+
+
+copenNoPolyA_annot_t <- left_join(copenNoPolyA_acc, transcript.annot, by=c("product_accession", "genomic_accession"))
+
+# write.csv(copenNoPolyA_annot_t,file.path(tailfindr.path, "tailfindr","noPolyA","copenhageni_noPolyA.trans.final.csv"), quote=FALSE, row.names=FALSE)
+
+copenNoPolyA_annot_trans_stat <- copenNoPolyA_annot_t  %>% group_by(read_type,tail_is_valid) %>%summarise(read_type_num=n()) #%>% subset(tail_is_valid == TRUE)
+copenNoPolyA_annot_trans_stat$Sample <- "copenNoPolyA"
+copenNoPolyA_annot_trans_stat$Map_To <- "Transcriptome"
+
+# tail length distribution
+copenNoPolyA_tailLen_t <-copenNoPolyA_annot_t %>% subset(!is.na(tail_length))%>% select(c(read_type, tail_is_valid, tail_length))
+copenNoPolyA_tailLen_t$Sample <- "copenNoPolyA"
+copenNoPolyA_tailLen_t$Map_To <- "Transcriptome"
+
+
+length(unique(copenNoPolyA_annot_t$non.redundant_refseq))
+summary(copenNoPolyA_annot_t$non.redundant_refseq)
+
+transcript_mapped_count_table <- table(copenNoPolyA_annot_t$non.redundant_refseq)[order(table(copenNoPolyA_annot_t$non.redundant_refseq),decreasing =TRUE)]
+
+transcript_mapped_count_table_df <- data.frame(product_accession=names(transcript_mapped_count_table), num_reads_mapped=as.numeric(transcript_mapped_count_table))
+top_10_mapped_transcripts <- head(transcript_mapped_count_table_df$product_accession,10)
+
+transcript_mapped_count_table_df_annot <- left_join(transcript_mapped_count_table_df, copenNoPolyA_annot_t)
+
+transcript_mapped_transcripts_top10<- transcript_mapped_count_table_df_annot[transcript_mapped_count_table_df_annot$product_accession %in% top_10_mapped_transcripts,]
+
+library(tidyr)
+transcript_mapped_transcripts_top10
+transcript_mapped_transcripts_top10<-transcript_mapped_transcripts_top10 %>% unite("x_label", c(product_accession,name), remove = FALSE,sep="\n")
+ggplot(transcript_mapped_transcripts_top10, aes(x=product_accession,fill=tail_is_valid))+
+  geom_bar(position="dodge")+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(y="Number of Reads Mapped to Transcript")+
+  scale_x_discrete(labels =transcript_mapped_transcripts_top10$x_label)
+
+copenNoPolyA_annot_t
+
+copenNoPolyA_annot_t %>% subset(non.redundant_refseq=="WP_000586163.1")
+```
+# Copenhagni PolyA tail added
+
+### MAP to Genome
+```{r}
+copenPolyA_g <- read.csv(file.path(tailfindr.path, "tailfindr","polyA","copenhageni_PolyA.annotated.csv"))
+copenPolyA_acc <-  copenPolyA_g %>% 
+  select(-c(file_path)) %>% mutate(product_accession=sapply(transcript_id, function(x){
+    paste0("WP_",unlist(strsplit(x,"_", fixed = TRUE))[5]) 
+  })) %>% mutate(genomic_accession = sapply(transcript_id, function(x){
+    paste0("NC_",unlist(strsplit(x,"_", fixed = TRUE))[2]) 
+  })) %>% select(-c(transcript_id))
+
+
+copenPolyA_annot_g <- left_join(copenPolyA_acc, transcript.annot, by=c("product_accession", "genomic_accession"))
+copenPolyA_annot_g %>% subset(read_type != "invalid") %>% subset(read_type == "polyA") %>% subset(tail_is_valid == TRUE)
+# write.csv(copenNoPolyA_annot, file.path(tailfindr.path, "tailfindr","polyA", "copenhageni_noPolyA.final.trans.csv"))
+
+copenPolyA_annot_genome_stat <- copenPolyA_annot_g  %>% group_by(read_type,tail_is_valid) %>%summarise(read_type_num=n()) #%>% subset(tail_is_valid == TRUE)
+copenPolyA_annot_genome_stat$Sample <- "copenPolyA"
+copenPolyA_annot_genome_stat$Map_To <- "Genome"
+
+# tail length distribution
+copenPolyA_tailLen_g <-copenPolyA_annot_g %>% subset(!is.na(tail_length))%>% select(c(read_type, tail_is_valid, tail_length))
+
+copenPolyA_tailLen_g$Sample <- "copenPolyA"
+copenPolyA_tailLen_g$Map_To <- "Genome"
+```
+
+
+### MAP to Transcriptome
+```{r}
+copenPolyA_t <- read.csv(file.path(tailfindr.path, "tailfindr","polyA","copenhageni_PolyA.annotated.trans.csv"))
+copenPolyA_acc <-  copenPolyA_t %>% 
+  select(-c(file_path)) %>% mutate(product_accession=sapply(transcript_id, function(x){
+    paste0("WP_",unlist(strsplit(x,"_", fixed = TRUE))[5]) 
+  })) %>% mutate(genomic_accession = sapply(transcript_id, function(x){
+    paste0("NC_",unlist(strsplit(x,"_", fixed = TRUE))[2]) 
+  })) %>% select(-c(transcript_id))
+
+
+copenPolyA_annot_t <- left_join(copenPolyA_acc, transcript.annot, by=c("product_accession", "genomic_accession"))
+copenPolyA_annot_t %>% subset(read_type != "invalid") #%>% subset(read_type == "polyT") %>% subset(tail_is_valid == TRUE)
+# write.csv(copenNoPolyA_annot, file.path(tailfindr.path, "tailfindr","polyA", "copenhageni_noPolyA.final.trans.csv"))
+
+copenPolyA_annot_trans_stat <- copenPolyA_annot_t  %>% group_by(read_type,tail_is_valid) %>%summarise(read_type_num=n()) #%>% subset(tail_is_valid == TRUE)
+copenPolyA_annot_trans_stat$Sample <- "copenPolyA"
+copenPolyA_annot_trans_stat$Map_To <- "Transcriptome"
+
+
+# tail length distribution
+copenPolyA_tailLen_t <-copenPolyA_annot_t %>% subset(!is.na(tail_length))%>% select(c(read_type, tail_is_valid, tail_length))
+
+copenPolyA_tailLen_t$Sample <- "copenPolyA"
+copenPolyA_tailLen_t$Map_To <- "Transcriptome"
+```
+
+# Combined
+
+# Plot Read type summary
+```{r}
+
+combined_tailfindr_stat <- rbind(copenNoPolyA_annot_genome_stat,copenNoPolyA_annot_trans_stat,copenPolyA_annot_genome_stat, copenPolyA_annot_trans_stat)
+combined_tailfindr_stat
+library(ggplot2)
+library(scales)
+plot_map <- ggplot(combined_tailfindr_stat,aes(x=Sample, y=read_type_num, fill=read_type))+
+  geom_bar(stat = "identity", position = "stack")+
+  facet_wrap(.~Map_To, 
+scales="free_y")+
+  scale_y_continuous(label=comma)+
+  theme_bw()+
+  theme(axis.text = element_text(size=12),axis.text.x = element_text(angle = 45, vjust=0.99,hjust = 1), axis.title = element_text(size=12),strip.text = element_text(size=12),legend.text = element_text(size=12),legend.title = element_text(size=12))+
+  labs(x="Samples", y= "Count of Read Types")
+plot_map
+ggsave(file.path(tailfindr.path,"tailfindr","figures" ,"Num_Read_Type_MapTo_Gen_Transcriptome.pdf"),plot_map,height = 5)
+
+# write.csv(copenNoPolyA_annot, file.path(tailfindr.path, "tailfindr","noPolyA", "copenhageni_noPolyA.final.trans.csv"))
+```
+
+
+```{r}
+# tail length distribution
+combined_tailLen <- rbind(copenNoPolyA_tailLen_g, copenNoPolyA_tailLen_t, copenPolyA_tailLen_g, copenPolyA_tailLen_t)
+# tail length distribution
+combined_tailLen %>% subset(tail_is_valid==FALSE)
+
+
+plot_tailLen <- ggplot(combined_tailLen,aes(x=Sample, y=tail_length, fill = Sample ))+
+      geom_violin()+
+  facet_grid(read_type~Map_To, scales = "free_y")+
+  theme_bw()+
+  theme(axis.text = element_text(size=12),axis.text.x = element_text(angle = 45, vjust=0.99,hjust = 1), axis.title = element_text(size=12),strip.text = element_text(size=12),legend.text = element_text(size=12),legend.title = element_text(size=12))+
+  labs(y="Tail Length")
+plot_tailLen
+ggsave(file.path(tailfindr.path,"tailfindr","figures" ,"tailLength_violin.pdf"),plot_tailLen,width = 8)
+```
