@@ -17,7 +17,7 @@ library(dplyr)
 
 
 ```{r}
-tailfindr.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/polyATail_cDNA_Copen_072021/"
+tailfindr.path <- "D:/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/polyATail_cDNA_Copen_072021/"
 
 
 
@@ -50,7 +50,7 @@ copenNoPolyA_annot_genome_stat$Map_To <- "Genome"
 
 
 # tail length distribution
-copenNoPolyA_tailLen_g
+
 copenNoPolyA_tailLen_g <-copenNoPolyA_annot_g %>% subset(!is.na(tail_length)) %>% select(c(read_type, tail_is_valid, tail_length))
 copenNoPolyA_tailLen_g$Sample <- "copenNoPolyA"
 copenNoPolyA_tailLen_g$Map_To <- "Genome"
@@ -86,6 +86,9 @@ copenNoPolyA_tailLen_t$Map_To <- "Transcriptome"
 length(unique(copenNoPolyA_annot_t$non.redundant_refseq))
 summary(copenNoPolyA_annot_t$non.redundant_refseq)
 
+
+
+# Number of Reads Mapped to each transcript
 transcript_mapped_count_table <- table(copenNoPolyA_annot_t$non.redundant_refseq)[order(table(copenNoPolyA_annot_t$non.redundant_refseq),decreasing =TRUE)]
 
 transcript_mapped_count_table_df <- data.frame(product_accession=names(transcript_mapped_count_table), num_reads_mapped=as.numeric(transcript_mapped_count_table))
@@ -96,18 +99,70 @@ transcript_mapped_count_table_df_annot <- left_join(transcript_mapped_count_tabl
 transcript_mapped_transcripts_top10<- transcript_mapped_count_table_df_annot[transcript_mapped_count_table_df_annot$product_accession %in% top_10_mapped_transcripts,]
 
 library(tidyr)
-transcript_mapped_transcripts_top10
+library(ggplot2)
+transcript_mapped_transcripts_top10$Sample <- "copenNoPolyA"
+transcript_mapped_transcripts_top10_copenNoPolyA <- transcript_mapped_transcripts_top10
 transcript_mapped_transcripts_top10<-transcript_mapped_transcripts_top10 %>% unite("x_label", c(product_accession,name), remove = FALSE,sep="\n")
-ggplot(transcript_mapped_transcripts_top10, aes(x=product_accession,fill=tail_is_valid))+
+ggplot(transcript_mapped_transcripts_top10, aes(x=x_label,fill=tail_is_valid))+
   geom_bar(position="dodge")+
   theme_bw()+
-  theme(axis.text.x = element_text(angle = 90))+
-  labs(y="Number of Reads Mapped to Transcript")+
-  scale_x_discrete(labels =transcript_mapped_transcripts_top10$x_label)
+  theme(axis.text.x = element_text(angle = 45, vjust=0.9,hjust = 0.9), axis.text=element_text(size=12), axis.title=element_text(size=12), legend.text = element_text(size=12), legend.title = element_text(size=12))+
+  labs(y="Number of Reads Mapped to Transcript") +
+  labs(x= "Transcripts ID/Names")
 
-copenNoPolyA_annot_t
+```
 
-copenNoPolyA_annot_t %>% subset(non.redundant_refseq=="WP_000586163.1")
+# With NON- PolyA Sample - Most Frequently Mapped Transcripts
+```{r}
+
+
+
+copenNoPolyA_annot_t_polyA <- copenNoPolyA_annot_t %>% subset(read_type == "polyA")
+copenNoPolyA_annot_t_polyT <- copenNoPolyA_annot_t %>% subset(read_type == "polyT")
+copenNoPolyA_annot_t_invalid <- copenNoPolyA_annot_t %>% subset(read_type == "invalid")
+
+# Top10 of polyA Reads Mapped to each transcript
+transcript_mapped_count_table_polyA <- table(copenNoPolyA_annot_t_polyA$non.redundant_refseq)[order(table(copenNoPolyA_annot_t_polyA$non.redundant_refseq),decreasing =TRUE)]
+
+transcript_mapped_count_table_df_polyA <- data.frame(product_accession=names(transcript_mapped_count_table_polyA), num_reads_mapped=as.numeric(transcript_mapped_count_table_polyA))
+top_10_mapped_transcripts_polyA <- head(transcript_mapped_count_table_df_polyA$product_accession,10)
+top_10_mapped_transcripts_polyA
+transcript_mapped_count_table_df_annot_polyA <- left_join(transcript_mapped_count_table_df_polyA, copenNoPolyA_annot_t_polyA)
+
+transcript_mapped_transcripts_top10_polyA<- transcript_mapped_count_table_df_annot_polyA[transcript_mapped_count_table_df_annot_polyA$product_accession %in% top_10_mapped_transcripts_polyA,]
+
+
+
+# Top10 of polyT Reads Mapped to each transcript
+transcript_mapped_count_table_polyT <- table(copenNoPolyA_annot_t_polyT$non.redundant_refseq)[order(table(copenNoPolyA_annot_t_polyT$non.redundant_refseq),decreasing =TRUE)]
+
+transcript_mapped_count_table_df_polyT <- data.frame(product_accession=names(transcript_mapped_count_table_polyT), num_reads_mapped=as.numeric(transcript_mapped_count_table_polyT))
+top_10_mapped_transcripts_polyT <- head(transcript_mapped_count_table_df_polyT$product_accession,10)
+
+transcript_mapped_count_table_df_annot_polyT <- left_join(transcript_mapped_count_table_df_polyT, copenNoPolyA_annot_t_polyT)
+
+
+transcript_mapped_transcripts_top10_polyT<- transcript_mapped_count_table_df_annot_polyT[transcript_mapped_count_table_df_annot_polyT$product_accession %in% top_10_mapped_transcripts_polyT,]
+
+
+
+# Top10 of "invalid" Reads Mapped to each transcript
+transcript_mapped_count_table_invalid <- table(copenNoPolyA_annot_t_invalid$non.redundant_refseq)[order(table(copenNoPolyA_annot_t_invalid$non.redundant_refseq),decreasing =TRUE)]
+
+transcript_mapped_count_table_df_invalid <- data.frame(product_accession=names(transcript_mapped_count_table_invalid), num_reads_mapped=as.numeric(transcript_mapped_count_table_invalid))
+top_10_mapped_transcripts_invalid <- head(transcript_mapped_count_table_df_invalid$product_accession,10)
+
+transcript_mapped_count_table_df_annot_invalid <- left_join(transcript_mapped_count_table_df_invalid, copenNoPolyA_annot_t_invalid)
+
+
+transcript_mapped_transcripts_top10_invalid<- transcript_mapped_count_table_df_annot_invalid[transcript_mapped_count_table_df_annot_invalid$product_accession %in% top_10_mapped_transcripts_invalid,]
+
+
+
+copenNoPolyA_combined_transcript_mapped_top10 <- rbind(transcript_mapped_transcripts_top10_polyA, transcript_mapped_transcripts_top10_polyT, transcript_mapped_transcripts_top10_invalid)
+
+
+copenNoPolyA_combined_transcript_mapped_top10$Sample <- "copenNoPolyA"
 ```
 # Copenhagni PolyA tail added
 
@@ -163,6 +218,102 @@ copenPolyA_tailLen_t <-copenPolyA_annot_t %>% subset(!is.na(tail_length))%>% sel
 
 copenPolyA_tailLen_t$Sample <- "copenPolyA"
 copenPolyA_tailLen_t$Map_To <- "Transcriptome"
+
+# Number of Reads Mapped to each transcript
+transcript_mapped_count_table <- table(copenPolyA_annot_t$non.redundant_refseq)[order(table(copenPolyA_annot_t$non.redundant_refseq),decreasing =TRUE)]
+
+transcript_mapped_count_table_df <- data.frame(product_accession=names(transcript_mapped_count_table), num_reads_mapped=as.numeric(transcript_mapped_count_table))
+top_10_mapped_transcripts <- head(transcript_mapped_count_table_df$product_accession,10)
+
+transcript_mapped_count_table_df_annot <- left_join(transcript_mapped_count_table_df, copenPolyA_annot_t)
+
+transcript_mapped_transcripts_top10<- transcript_mapped_count_table_df_annot[transcript_mapped_count_table_df_annot$product_accession %in% top_10_mapped_transcripts,]
+
+library(tidyr)
+library(ggplot2)
+transcript_mapped_transcripts_top10$Sample <- "copenPolyA"
+transcript_mapped_transcripts_top10_copenPolyA <- transcript_mapped_transcripts_top10
+
+
+
+```
+
+# With PolyA Sample - Most Frequently Mapped Transcripts
+```{r}
+
+
+
+copenPolyA_annot_t_polyA <- copenPolyA_annot_t %>% subset(read_type == "polyA")
+copenPolyA_annot_t_polyT <- copenPolyA_annot_t %>% subset(read_type == "polyT")
+copenPolyA_annot_t_invalid <- copenPolyA_annot_t %>% subset(read_type == "invalid")
+
+# Top10 of polyA Reads Mapped to each transcript
+transcript_mapped_count_table_polyA <- table(copenPolyA_annot_t_polyA$non.redundant_refseq)[order(table(copenPolyA_annot_t_polyA$non.redundant_refseq),decreasing =TRUE)]
+
+transcript_mapped_count_table_df_polyA <- data.frame(product_accession=names(transcript_mapped_count_table_polyA), num_reads_mapped=as.numeric(transcript_mapped_count_table_polyA))
+top_10_mapped_transcripts_polyA <- head(transcript_mapped_count_table_df_polyA$product_accession,10)
+top_10_mapped_transcripts_polyA
+transcript_mapped_count_table_df_annot_polyA <- left_join(transcript_mapped_count_table_df_polyA, copenPolyA_annot_t_polyA)
+
+transcript_mapped_transcripts_top10_polyA<- transcript_mapped_count_table_df_annot_polyA[transcript_mapped_count_table_df_annot_polyA$product_accession %in% top_10_mapped_transcripts_polyA,]
+
+
+
+# Top10 of polyT Reads Mapped to each transcript
+transcript_mapped_count_table_polyT <- table(copenPolyA_annot_t_polyT$non.redundant_refseq)[order(table(copenPolyA_annot_t_polyT$non.redundant_refseq),decreasing =TRUE)]
+
+transcript_mapped_count_table_df_polyT <- data.frame(product_accession=names(transcript_mapped_count_table_polyT), num_reads_mapped=as.numeric(transcript_mapped_count_table_polyT))
+top_10_mapped_transcripts_polyT <- head(transcript_mapped_count_table_df_polyT$product_accession,10)
+
+transcript_mapped_count_table_df_annot_polyT <- left_join(transcript_mapped_count_table_df_polyT, copenPolyA_annot_t_polyT)
+
+
+transcript_mapped_transcripts_top10_polyT<- transcript_mapped_count_table_df_annot_polyT[transcript_mapped_count_table_df_annot_polyT$product_accession %in% top_10_mapped_transcripts_polyT,]
+
+
+transcript_mapped_transcripts_top10_polyT
+
+# Top10 of "invalid" Reads Mapped to each transcript
+transcript_mapped_count_table_invalid <- table(copenPolyA_annot_t_invalid$non.redundant_refseq)[order(table(copenPolyA_annot_t_invalid$non.redundant_refseq),decreasing =TRUE)]
+
+transcript_mapped_count_table_df_invalid <- data.frame(product_accession=names(transcript_mapped_count_table_invalid), num_reads_mapped=as.numeric(transcript_mapped_count_table_invalid))
+top_10_mapped_transcripts_invalid <- head(transcript_mapped_count_table_df_invalid$product_accession,10)
+
+transcript_mapped_count_table_df_annot_invalid <- left_join(transcript_mapped_count_table_df_invalid, copenPolyA_annot_t_invalid)
+
+
+transcript_mapped_transcripts_top10_invalid<- transcript_mapped_count_table_df_annot_invalid[transcript_mapped_count_table_df_annot_invalid$product_accession %in% top_10_mapped_transcripts_invalid,]
+
+
+
+
+transcript_mapped_transcripts_top10_polyA
+
+copenPolyA_combined_transcript_mapped_top10 <- rbind(transcript_mapped_transcripts_top10_polyA, transcript_mapped_transcripts_top10_polyT, transcript_mapped_transcripts_top10_invalid)
+
+copenPolyA_combined_transcript_mapped_top10$Sample <- "copenPolyA"
+
+```
+
+### plot most frequently mapped transcripts
+```{r}
+
+library(tidyr)
+library(ggplot2)
+
+combined_transcript_mapped_top10 <- rbind(copenPolyA_combined_transcript_mapped_top10, copenNoPolyA_combined_transcript_mapped_top10)
+
+combined_transcript_mapped_top10<-combined_transcript_mapped_top10 %>% unite("x_label", c(product_accession,name), remove = FALSE,sep="\n")
+ggplot(combined_transcript_mapped_top10, aes(x=product_accession,fill=tail_is_valid))+
+  geom_bar(position = position_dodge(preserve="single"))+
+  facet_wrap(Sample~read_type,scales="free")+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 90,hjust=1), axis.text=element_text(size=12), axis.title=element_text(size=12), legend.text = element_text(size=12), legend.title = element_text(size=12))+
+  labs(y="Number of Reads Mapped to Transcript") +
+  labs(x= "Transcripts ID/Names")
+
+top10_for_all_readType
+
 ```
 
 # Combined
@@ -204,4 +355,34 @@ plot_tailLen <- ggplot(combined_tailLen,aes(x=Sample, y=tail_length, fill = Samp
   labs(y="Tail Length")
 plot_tailLen
 ggsave(file.path(tailfindr.path,"tailfindr","figures" ,"tailLength_violin.pdf"),plot_tailLen,width = 8)
+```
+
+```{r}
+library(tidyr)
+library(ggplot2)
+
+combined_transcript_mapped_top10 <- rbind(transcript_mapped_transcripts_top10_copenPolyA, transcript_mapped_transcripts_top10_copenNoPolyA)
+combined_transcript_mapped_top10<-combined_transcript_mapped_top10 %>% unite("x_label", c(product_accession,name), remove = FALSE,sep="\n")
+
+
+plot_topMap <- ggplot(combined_transcript_mapped_top10, aes(x=x_label,fill=tail_is_valid))+
+  geom_bar(position="dodge")+
+  facet_wrap(Sample ~ ., scale="free_x")+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 90,hjust = 1), axis.text=element_text(size=10), axis.title=element_text(size=12), legend.text = element_text(size=12), legend.title = element_text(size=12))+
+  labs(y="Number of Reads Mapped to Transcript") +
+  labs(x= "Transcripts ID/Names")
+
+ggsave(file.path(tailfindr.path, "tailfindr", "figures", "Top10MapTranscripts.pdf"), plot_topMap,width = 10)
+
+
+plot_read <-ggplot(combined_transcript_mapped_top10, aes(x=x_label,fill=tail_is_valid))+
+  geom_bar(position=position_dodge(preserve="single") )+
+  facet_wrap(Sample ~ read_type, scale="free")+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 90,hjust=1), axis.text=element_text(size=10), axis.title=element_text(size=12), legend.text = element_text(size=12), legend.title = element_text(size=12))+
+  labs(y="Number of Reads Mapped to Transcript") +
+  labs(x= "Transcripts ID/Names")
+ggsave(file.path(tailfindr.path, "tailfindr", "figures", "Top10MapTranscriptsReadType.pdf"), plot_read,width = 12,height = 12)
+
 ```
