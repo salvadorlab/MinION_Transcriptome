@@ -2,11 +2,13 @@
 title: "16S_minimap"
 author: "Rachel Xu"
 date: "8/7/2021"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE, results = "hide", message=FALSE,warning = FALSE)
 ```
 
 ```{r}
@@ -16,10 +18,10 @@ rna.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/16SrRNA"
 
 
 ```
-# Format Taxa file for dictionary
-```{r}
+## STEP 1) Format Taxa file for dictionary
+```{r, results='markup'}
 library(dplyr)
-library(tidyverse)
+library(readr)
 
 tax.ref <- read_delim(file.path(rna.path,"taxa", "SILVA_138.1_SSURef_NR99_tax_list.csv"), delim=";", col_names  =FALSE) %>% mutate(TAXAID = sapply(X1, function(x){
   s1 <- unlist(strsplit(x, " ", fixed = TRUE))[1]
@@ -29,16 +31,16 @@ tax.ref <- read_delim(file.path(rna.path,"taxa", "SILVA_138.1_SSURef_NR99_tax_li
   unlist(strsplit(x, " ", fixed = TRUE)) [2]
 }))%>%
   subset(grepl(">", X1)) %>% select(-c(X1))
-tax.ref
+
 bac.tax.ref <- tax.ref %>% subset(Domain== "Bacteria") %>% select(-c("X8"))
-bac.tax.ref
+
 colnames(bac.tax.ref) <- c("phylum", "class","order", "family","genus","species", "TAXAID", "Domain")
 
 bac.tax.ref <- bac.tax.ref[,c("TAXAID", "Domain","phylum", "class","order", "family","genus","species")]
-bac.tax.ref
+head(bac.tax.ref)
 ```
 
-# Minimap2 Output
+
 ```{r}
 
 mini.path <- file.path(rna.path, "minimap_out")
@@ -47,9 +49,10 @@ mini.path <- file.path(rna.path, "minimap_out")
 ```
 
 
+## STEP 2) Abudnace of Bacterial Families in Each Samples
 
-## BC03
-```{r}
+### 2.1) BC03 Top 10 families Abundances
+```{r, results='markup'}
 # read in minimap2 output, select best TAXA MAPQ from multi-mapped reads
 BC03 <- read_delim(file.path(mini.path,"BC03.bed"), delim ="\t", col_names = FALSE) %>% select(c(X1,X2,X3,X4,X5))%>% group_by(X4) %>% filter(X5==max(X5))
 
@@ -69,12 +72,13 @@ BC03.noDup <- BC03.taxa %>%
 
 # remove reads's LCA didn't assign to the family level, only take one assignment from each read
 BC03.noDup.map <- BC03.noDup %>% subset(!is.na(family_1) ) %>% group_by(READID) %>% summarise_each(funs(max)) %>% select(-c(family, genus, species)) %>% rename("family"="family_1", "genus" = "genus_1", "species" = "species_1")
-BC03.noDup.map
-table(BC03.noDup.map$READID)[table(BC03.noDup.map$READID) > 1] # check if any reads still has multi-mapping
+# BC03.noDup.map
+# table(BC03.noDup.map$READID)[table(BC03.noDup.map$READID) > 1] # check if any reads still has multi-mapping
 
 # check number of reads assigned to at least family level
-length(BC03.noDup.map$READID) 
-length(unique(BC03.noDup.map$READID))
+print("Check if all multi-mapping reads has been summarised into the Lowest Common Ancestor:")
+print(paste("Number of current readID in BC03",length(BC03.noDup.map$READID)))
+print(paste("Number of unique readID in BC03",length(unique(BC03.noDup.map$READID))))
 
 
 BC03.stat <- BC03.noDup.map %>% group_by(Domain,phylum, class,order, family,genus,species) %>% summarise(num_reads=n())
@@ -97,22 +101,22 @@ Top10.families <- ordered.BC03.fam %>% subset(Top10) %>% ungroup() %>% select(c(
 other_families <- ordered.BC03.fam %>% subset(!Top10) %>% ungroup() %>% summarise(family="Other",Number.Reads=sum(Number.Reads))
 # bind top 10 and Other families categories
 BC.plot.families.3 <- rbind(Top10.families, other_families) %>% mutate(Sample="BC03")
-
+head(BC.plot.families.3,11)
 ```
 
-### Leptospira in BC03
-```{r}
-
+### 2.1.2) Leptospira in BC03
+```{r, results="markup"}
+library(tibble)
 lepto.mapped <- BC03.noDup.map %>% subset(phylum == "Spirochaetota")
-lepto.mapped
+
 BC03.details <- read_delim(file.path(mini.path,"BC03.bed"), delim ="\t", col_names = FALSE) %>% subset(X4 %in% lepto.mapped$READID)
-BC03.details
+
 
 library(ggtree)
 library(phytools)
 
 BC03.lepto.tree <- read.tree(file.path(rna.path, "taxa", "BC03_lepto_16S.phy"))
-BC03.lepto.tree$tip.label
+# BC03.lepto.tree$tip.label
 
 bc03.tree <- ggtree(BC03.lepto.tree)
 
@@ -122,33 +126,33 @@ outgroup.node <- outGroup$node
 
 BC03.lepto.tree.reroot <- reroot(BC03.lepto.tree, outgroup.node)
 taxa.meta <-read.csv(file.path(rna.path, "taxa","lepto.taxa.figtree.metadata.txt"), sep="\t") %>% rename("label" = "Biosample")
-taxa.meta
-bc03.tree.annot <- left_join(as.tibble(BC03.lepto.tree.reroot),taxa.meta)
+
+bc03.tree.annot <- left_join(as_tibble(BC03.lepto.tree.reroot),taxa.meta)
 
 bc3.p <- ggtree(BC03.lepto.tree.reroot)+
     geom_strip('NR_043045.1', 'MN086353.1', barsize=2, color='blue', 
-            label = "S1\n(Saprophytic)", offset.text=.001, fontsize=5)+
+            label = "S1\n(Saprophytic)", offset.text=.001, fontsize=2)+
     geom_strip('MN086352.1', 'MN086356.1', barsize=2, color='pink', 
-            label = "S2\n(Saprophytic)", offset.text=.001, fontsize=5)+
+            label = "S2\n(Saprophytic)", offset.text=.001, fontsize=2)+
     geom_strip('DQ522177.1', 'DQ522190.1', barsize=2, color='red', 
-            label = "Other\nEnvironment", offset.text=.001, fontsize=5)+
+            label = "Other\nEnvironment", offset.text=.001, fontsize=2)+
       geom_strip('MN047234.1', 'MK791629.1', barsize=2, color='light blue', 
-            label = "P2\n(intermediate)", offset.text=.001, fontsize=5)+
+            label = "P2\n(intermediate)", offset.text=.001, fontsize=2)+
         geom_strip('MN062723.1', 'NR_043050.1', barsize=2, color='dark green', 
-            label = "P1\n(pathogenic)", offset.text=.001, fontsize=5)+
+            label = "P1\n(pathogenic)", offset.text=.001, fontsize=2)+
     geom_hilight(mapping=aes(subset = node %in% c(148,151)))+
   geom_treescale()+
  geom_tiplab(align=TRUE, aes(label=bc03.tree.annot$Name),offset = -0.5, fontsize=1)
 
 bc3.p
- ggsave(file.path(rna.path, "taxa", "BC03.lepto.NJ.comparison.pdf"), bc3.p, width=30,height = 15)
- as.tibble(BC03.lepto.tree.reroot)
+ # ggsave(file.path(rna.path, "taxa", "BC03.lepto.NJ.comparison.pdf"), bc3.p, width=30,height = 15)
+
 # write.csv(lepto.mapped$READID, file.path(rna.path, "taxa","BC03.read.id.leptoMapped.txt"), sep="\n", quote = FALSE, row.names = FALSE)
 
 ```
 
-
-```{r}
+### 2.2) BC04 Top 10 families Abundances
+```{r, results='markup'}
 # read in minimap2 output, select best TAXA MAPQ from multi-mapped reads
 BC04 <- read_delim(file.path(mini.path,"BC04.bed"), delim ="\t", col_names = FALSE) %>% select(c(X1,X4,X5))%>% group_by(X4) %>% filter(X5==max(X5))
 
@@ -168,12 +172,14 @@ BC04.noDup <- BC04.taxa %>%
 
 # remove reads's LCA didn't assign to the family level, only take one assignment from each read
 BC04.noDup.map <- BC04.noDup %>% subset(!is.na(family_1) ) %>% group_by(READID) %>% summarise_each(funs(max)) %>% select(-c(family, genus, species)) %>% rename("family"="family_1", "genus" = "genus_1", "species" = "species_1")
-BC04.noDup.map
-table(BC04.noDup.map$READID)[table(BC04.noDup.map$READID) > 1] # check if any reads still has multi-mapping
+
+# table(BC04.noDup.map$READID)[table(BC04.noDup.map$READID) > 1] # check if any reads still has multi-mapping
+
 
 # check number of reads assigned to at least family level
-length(BC04.noDup.map$READID) 
-length(unique(BC04.noDup.map$READID))
+print("Check if all multi-mapping reads has been summarised into the Lowest Common Ancestor:")
+print(paste("Number of current readID in BC04",length(BC04.noDup.map$READID)))
+print(paste("Number of unique readID in BC04",length(unique(BC04.noDup.map$READID))))
 
 BC04.noDup.map %>% subset(phylum == "Spirochaetota")
 
@@ -193,8 +199,9 @@ ordered.BC04.fam <- ordered.BC04.fam %>% mutate(Top10= sapply(Number.Reads, func
 Top10.families <- ordered.BC04.fam %>% subset(Top10) %>% ungroup() %>% select(c(family, Number.Reads))
 other_families <- ordered.BC04.fam %>% subset(!Top10) %>% ungroup() %>% summarise(family="Other",Number.Reads=sum(Number.Reads))
 BC.plot.families.4 <- rbind(Top10.families, other_families) %>% mutate(Sample="BC04")
+head(BC.plot.families.4, 11)
 ```
-
+### 2.3) BC05 Top 10 families Abundances
 ```{r}
 
 # read in minimap2 output, select best TAXA MAPQ from multi-mapped reads
@@ -216,19 +223,20 @@ BC05.noDup <- BC05.taxa %>%
 
 # remove reads's LCA didn't assign to the family level, only take one assignment from each read
 BC05.noDup.map <- BC05.noDup %>% subset(!is.na(family_1) ) %>% group_by(READID) %>% summarise_each(funs(max)) %>% select(-c(family, genus, species)) %>% rename("family"="family_1", "genus" = "genus_1", "species" = "species_1")
-BC05.noDup.map
-table(BC05.noDup.map$READID)[table(BC05.noDup.map$READID) > 1] # check if any reads still has multi-mapping
+
+# table(BC05.noDup.map$READID)[table(BC05.noDup.map$READID) > 1] # check if any reads still has multi-mapping
 
 # check number of reads assigned to at least family level
-length(BC05.noDup.map$READID) 
-length(unique(BC05.noDup.map$READID))
+print("Check if all multi-mapping reads has been summarised into the Lowest Common Ancestor:")
+print(paste("Number of current readID in BC05",length(BC05.noDup.map$READID)))
+print(paste("Number of unique readID in BC05",length(unique(BC05.noDup.map$READID))))
 
 BC05.noDup.map %>% subset(phylum == "Spirochaetota")
 
 
 BC05.stat <- BC05.noDup.map %>% group_by(Domain,phylum, class,order, family,genus,species) %>% summarise(num_reads=n())
 # write.csv(BC05.stat, file.path(rna.path,"minimap_stat","BC05.bact.stats.csv"), quote = FALSE, col.names = TRUE,row.names = FALSE)
-BC05.stat
+
 BC05.stat$Sample <- "BC05"
 
 
@@ -240,9 +248,9 @@ ordered.BC05.fam$Top10 <- TRUE
 Top10.families <- ordered.BC05.fam %>% subset(Top10) %>% ungroup() %>% select(c(family, Number.Reads))
 other_families <- ordered.BC05.fam %>% subset(!Top10) %>% ungroup() %>% summarise(family="Other",Number.Reads=sum(Number.Reads))
 BC.plot.families.5 <- rbind(Top10.families, other_families) %>% mutate(Sample="BC05")
-BC.plot.families.5
+# BC.plot.families.5
 ```
-
+### 2.4) BC06 Top 10 families Abundances
 ```{r}
 # read in minimap2 output, select best TAXA MAPQ from multi-mapped reads
 BC06 <- read_delim(file.path(mini.path,"BC06.bed"), delim ="\t", col_names = FALSE) %>% select(c(X1,X4,X5))%>% group_by(X4) %>% filter(X5==max(X5))
@@ -263,12 +271,13 @@ BC06.noDup <- BC06.taxa %>%
 
 # remove reads's LCA didn't assign to the family level, only take one assignment from each read
 BC06.noDup.map <- BC06.noDup %>% subset(!is.na(family_1) ) %>% group_by(READID) %>% summarise_each(funs(max)) %>% select(-c(family, genus, species)) %>% rename("family"="family_1", "genus" = "genus_1", "species" = "species_1")
-BC06.noDup.map
+
 table(BC06.noDup.map$READID)[table(BC06.noDup.map$READID) > 1] # check if any reads still has multi-mapping
 
 # check number of reads assigned to at least family level
-length(BC06.noDup.map$READID) 
-length(unique(BC06.noDup.map$READID))
+print("Check if all multi-mapping reads has been summarised into the Lowest Common Ancestor:")
+print(paste("Number of current readID in BC06",length(BC06.noDup.map$READID)))
+print(paste("Number of unique readID in BC06",length(unique(BC06.noDup.map$READID))))
 
 BC06.noDup.map %>% subset(phylum == "Spirochaetota")
 
@@ -290,8 +299,8 @@ other_families <- ordered.BC06.fam %>% subset(!Top10) %>% ungroup() %>% summaris
 BC.plot.families.6 <- rbind(Top10.families, other_families) %>% mutate(Sample="BC06")
 ```
 
-# combined Top 10 families
-```{r}
+## combined Top 10 families
+```{r, results="markup"}
 
 library(plotly)
 library(RColorBrewer)
@@ -311,11 +320,11 @@ ggplotly(plot.top10)
 ```
 
 
-# Mapping statistics
-```{r}
+## Mapping Profiling Statistics
+```{r, results="markup"}
+library(tidyr)
 sam.stats <- file.path(rna.path, "sam_stats")
 
-list.files(sam.stats)
 
 # samtools stats mapping summary
 all.summary <- data.frame(Sample=character(),Total.Reads=integer(),Classified=integer() )
@@ -326,15 +335,13 @@ for(file in list.files(sam.stats)){
   all.summary <- rbind(all.summary, current.stat)
 }
 
-all.summary
-
 
 # taxonomy summary 
 family.read <- plot.top.fam %>% group_by(Sample) %>% summarise(Bacterial.Families=sum(Number.Reads))
 Top10.read <- plot.top.fam %>% mutate(isOther=sapply(family, function(x){
   ifelse(x == "Other", "Other", "Most.Abundant.Families")
 }))%>% group_by(Sample, isOther) %>% summarise(Family=sum(Number.Reads)) %>% pivot_wider(names_from = isOther, values_from = Family)
-Top10.read
+# Top10.read
 join1 <- left_join(all.summary, family.read)
 all.stat <- left_join(join1, Top10.read)
 
