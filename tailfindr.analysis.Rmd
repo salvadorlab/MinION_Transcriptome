@@ -17,7 +17,7 @@ library(dplyr)
 
 
 ```{r}
-tailfindr.path <- "D:/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/polyATail_cDNA_Copen_072021/"
+tailfindr.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/polyATail_cDNA_Copen_072021/"
 
 
 
@@ -29,7 +29,7 @@ transcript.annot <- read.csv(file.path(tailfindr.path, "reference","GCF_00000768
 
 ### MAP to Genome
 ```{r}
-copenNoPolyA_g <- read.csv(file.path(tailfindr.path, "tailfindr","noPolyA","copenhageni_noPolyA.annotated.csv"))
+copenNoPolyA_g <- read.csv(file.path(tailfindr.path, "tailfindr","copenhageni","noPolyA","copenhageni_noPolyA.annotated.csv"))
 # copenNoPolyA
 # copenNoPolyA_bed <- read.csv(file.path(tailfindr.path, "tailfindr","noPolyA","Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail.bed"), sep="\t",header = FALSE)
 # copenNoPolyA_bed
@@ -60,7 +60,7 @@ copenNoPolyA_tailLen_g$Map_To <- "Genome"
 
 ### MAP to Transcriptome
 ```{r}
-copenNoPolyA_t <- read.csv(file.path(tailfindr.path, "tailfindr","noPolyA","copenhageni_noPolyA.annotated.trans.csv"))
+copenNoPolyA_t <- read.csv(file.path(tailfindr.path, "tailfindr","copenhageni","noPolyA","copenhageni_noPolyA.annotated.trans.csv"))
 copenNoPolyA_acc <-  copenNoPolyA_t %>% 
   select(-c(file_path)) %>% mutate(product_accession=sapply(transcript_id, function(x){
     paste0("WP_",unlist(strsplit(x,"_", fixed = TRUE))[5]) 
@@ -116,7 +116,7 @@ ggplot(transcript_mapped_transcripts_top10, aes(x=x_label,fill=tail_is_valid))+
 
 ### MAP to Genome
 ```{r}
-copenPolyA_g <- read.csv(file.path(tailfindr.path, "tailfindr","polyA","copenhageni_PolyA.annotated.csv"))
+copenPolyA_g <- read.csv(file.path(tailfindr.path, "tailfindr","copenhageni","polyA","copenhageni_PolyA.annotated.csv"))
 copenPolyA_acc <-  copenPolyA_g %>% 
   select(-c(file_path)) %>% mutate(product_accession=sapply(transcript_id, function(x){
     paste0("WP_",unlist(strsplit(x,"_", fixed = TRUE))[5]) 
@@ -143,7 +143,7 @@ copenPolyA_tailLen_g$Map_To <- "Genome"
 
 ### MAP to Transcriptome
 ```{r}
-copenPolyA_t <- read.csv(file.path(tailfindr.path, "tailfindr","polyA","copenhageni_PolyA.annotated.trans.csv"))
+copenPolyA_t <- read.csv(file.path(tailfindr.path, "tailfindr","copenhageni","polyA","copenhageni_PolyA.annotated.trans.csv"))
 copenPolyA_acc <-  copenPolyA_t %>% 
   select(-c(file_path)) %>% mutate(product_accession=sapply(transcript_id, function(x){
     paste0("WP_",unlist(strsplit(x,"_", fixed = TRUE))[5]) 
@@ -205,7 +205,7 @@ plot_map <- ggplot(combined_tailfindr_stat,aes(x=Sample, y=read_type_num, fill=r
   theme(axis.text = element_text(size=12),axis.text.x = element_text(angle = 45, vjust=0.99,hjust = 1), axis.title = element_text(size=12),strip.text = element_text(size=12),legend.text = element_text(size=12),legend.title = element_text(size=12))+
   labs(x="Samples", y= "Count of Read Types")
 plot_map
-ggsave(file.path(tailfindr.path,"tailfindr","figures" ,"Num_Read_Type_MapTo_Gen_Transcriptome.pdf"),plot_map,height = 5)
+# ggsave(file.path(tailfindr.path,"tailfindr","figures" ,"Num_Read_Type_MapTo_Gen_Transcriptome.pdf"),plot_map,height = 5)
 
 # write.csv(copenNoPolyA_annot, file.path(tailfindr.path, "tailfindr","noPolyA", "copenhageni_noPolyA.final.trans.csv"))
 ```
@@ -225,7 +225,7 @@ plot_tailLen <- ggplot(combined_tailLen,aes(x=Sample, y=tail_length, fill = Samp
   theme(axis.text = element_text(size=12),axis.text.x = element_text(angle = 45, vjust=0.99,hjust = 1), axis.title = element_text(size=12),strip.text = element_text(size=12),legend.text = element_text(size=12),legend.title = element_text(size=12))+
   labs(y="Tail Length")
 plot_tailLen
-ggsave(file.path(tailfindr.path,"tailfindr","figures" ,"tailLength_violin.pdf"),plot_tailLen,width = 8)
+# ggsave(file.path(tailfindr.path,"tailfindr","figures" ,"tailLength_violin.pdf"),plot_tailLen,width = 8)
 ```
 
 ```{r}
@@ -244,8 +244,8 @@ plot_topMap <- ggplot(combined_transcript_mapped_top10, aes(x=x_label,fill=tail_
   labs(y="Number of Reads Mapped to Transcript") +
   labs(x= "Transcripts ID/Names")
 
-ggsave(file.path(tailfindr.path, "tailfindr", "figures", "Top10MapTranscripts.pdf"), plot_topMap,width = 10)
-
+# ggsave(file.path(tailfindr.path, "tailfindr", "figures", "Top10MapTranscripts.pdf"), plot_topMap,width = 10)
+plot_topMap
 
 plot_read <-ggplot(combined_transcript_mapped_top10, aes(x=x_label,fill=tail_is_valid))+
   geom_bar(position=position_dodge(preserve="single") )+
@@ -254,6 +254,8 @@ plot_read <-ggplot(combined_transcript_mapped_top10, aes(x=x_label,fill=tail_is_
   theme(axis.text.x = element_text(angle = 90,hjust=1), axis.text=element_text(size=10), axis.title=element_text(size=12), legend.text = element_text(size=12), legend.title = element_text(size=12))+
   labs(y="Number of Reads Mapped to Transcript") +
   labs(x= "Transcripts ID/Names")
-ggsave(file.path(tailfindr.path, "tailfindr", "figures", "Top10MapTranscriptsReadType.pdf"), plot_read,width = 12,height = 12)
+
+plot_read
+# ggsave(file.path(tailfindr.path, "tailfindr", "figures", "Top10MapTranscriptsReadType.pdf"), plot_read,width = 12,height = 12)
 
 ```
