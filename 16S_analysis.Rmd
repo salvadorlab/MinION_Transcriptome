@@ -108,7 +108,7 @@ head(BC.plot.families.3,11)
 ```{r, results="markup"}
 library(tibble)
 lepto.mapped <- BC03.noDup.map %>% subset(phylum == "Spirochaetota")
-
+lepto.mapped
 BC03.details <- read_delim(file.path(mini.path,"BC03.bed"), delim ="\t", col_names = FALSE) %>% subset(X4 %in% lepto.mapped$READID)
 
 
