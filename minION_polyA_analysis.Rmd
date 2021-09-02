@@ -131,7 +131,7 @@ p1 <- ggplot(directRna.nano.combined, aes(x=biotype, y=log(polya_length)))+
   scale_y_continuous(label=comma)
 
 p2 <- ggplot(directRna.nano.combined, aes(x=biotype)) +
-  geom_bar(stat="count", , alpha=0.2)+
+  geom_bar(stat="count",  alpha=0.2)+
   geom_text(aes(label = ..count..,y= ..count..), stat="count",vjust =-0.5,size=3)+
   coord_flip()+
   theme_bw()+
@@ -142,5 +142,59 @@ grid.newpage()
 plot <- grid.draw(cbind(ggplotGrob(p1), ggplotGrob(p2), size = "last"))
 plot
 
+```
+
+# MAP to Transcriptome 
+```{r}
+library(dplyr)
+library(ggplot2)
+direct.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA_trans_09012021"
+nano.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA_trans_09012021/nanopolish"
+ref <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA_trans_09012021/reference"
+
+transcript.annot <- read.csv(file.path(ref, "GCF_000007685.1_ASM768v1_feature_table.txt"), sep="\t") %>% subset(X..feature == "CDS") %>% select(-c("X..feature", "class", "assembly", "assembly_unit", "seq_type", "related_accession", "GeneID", "locus_tag","attributes"))
+```
+
+
+```{r}
+
+Q29.trans.pass <- read.csv(file.path(nano.path, "Q29_Copenhageni_Direct-RNA_FAST5_Pass.nanopolish.trans.polyA.tsv"), sep="\t") %>% subset(qc_tag == "PASS")
+
+Q29.trans.pass <- Q29.trans.pass %>% mutate(non.redundant_refseq = sapply(contig, function(x){
+  s1 <- unlist(strsplit(x, "_", fixed =TRUE))
+  paste(s1[4], s1[5],sep="_")
+}))
+
+Q29.trans.pass.anot <- left_join(Q29.trans.pass, transcript.annot)
+Q29.trans.pass.anot
+
+Q29.trans.pass.anot.Mapped.stat <- Q29.trans.pass.anot %>% group_by(product_accession, name, symbol, chromosome) %>% summarise(Num.Reads.Mapped = n()) %>% arrange(desc(Num.Reads.Mapped))
+
+# transcripts with longest polyA tailed reads mapped to them
+longest.tail.transcripts <- head(Q29.trans.pass.anot %>% arrange(desc(polya_length) ) %>% select(product_accession),10)[,1]
+Q29.trans.pass.anot %>% subset(product_accession %in%longest.tail.transcripts)
+
+ggplot(Q29.trans.pass.anot %>% subset(product_accession %in%longest.tail.transcripts), aes(x=non.redundant_refseq,y=polya_length ))+
+  geom_violin()+
+  geom_boxplot(width = 0.3) +
+  scale_y_continuous(breaks = seq(0, 600, 30), 
+                   limits = c(0,600), 
+                   expand = c(0,0))
+# ggsave(file.path(nano.path, "transcript_polyATail.pdf"))
+
+# transcripts with largest median length for all polyAed reads mapped to them
+longest_polyA_median <- Q29.trans.pass.anot %>% group_by(product_accession, name, symbol, chromosome) %>% mutate(num_reads_mapped = n())%>% mutate(median_polyA_length = median(polya_length)) %>% arrange(desc(median_polyA_length)) %>% mutate(plot_label = sapply(non.redundant_refseq, function(x){
+  paste(x, paste0("n=",n()),sep="\n")
+}))  %>% subset(num_reads_mapped >5)
+longest_polyA_median
+top_10_median <- head(unique(longest_polyA_median$median_polyA_length), 10)
+ggplot(longest_polyA_median %>% subset(median_polyA_length %in% top_10_median), aes(x=plot_label,y=polya_length ))+
+  geom_violin()+
+  geom_boxplot(width = 0.3) +
+  scale_y_continuous(breaks = seq(0, 200, 10), 
+                   limits = c(0,200), 
+                   expand = c(0,0))+
+  theme(axis.text.x = element_text(angle=90))
+# write.csv(Q29.trans.pass.anot.Mapped.stat, file.path(direct.path, "Q29.trans.pass.anot.MappedTramscript.stat.csv"), row.names = FALSE, quote=FALSE)
 ```
 

@@ -156,8 +156,8 @@ for (dir in SAMPLES){
 }
 
 
-combined_transcript_mapped_top10 %>% subset(Sample=="Patoc")
-
+table(combined_transcript_mapped_top10$read_id)
+length(unique(copenNoPolyA_t$read_id))
 ```
 
 # Combined
