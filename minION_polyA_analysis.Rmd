@@ -185,10 +185,10 @@ ggplot(Q29.trans.pass.anot %>% subset(product_accession %in%longest.tail.transcr
 # transcripts with largest median length for all polyAed reads mapped to them
 longest_polyA_median <- Q29.trans.pass.anot %>% group_by(product_accession, name, symbol, chromosome) %>% mutate(num_reads_mapped = n())%>% mutate(median_polyA_length = median(polya_length)) %>% arrange(desc(median_polyA_length)) %>% mutate(plot_label = sapply(non.redundant_refseq, function(x){
   paste(x, paste0("n=",n()),sep="\n")
-}))  %>% subset(num_reads_mapped >5)
-longest_polyA_median
+}))  %>% subset(num_reads_mapped >10)
+
 top_10_median <- head(unique(longest_polyA_median$median_polyA_length), 10)
-ggplot(longest_polyA_median %>% subset(median_polyA_length %in% top_10_median), aes(x=plot_label,y=polya_length ))+
+ggplot(longest_polyA_median %>% subset(median_polyA_length %in% top_10_median), aes(x=plot_label,y=polya_length, label = median_polyA_length))+
   geom_violin()+
   geom_boxplot(width = 0.3) +
   scale_y_continuous(breaks = seq(0, 200, 10), 
