@@ -1,0 +1,123 @@
+---
+title: "centrifuge.analysis"
+author: "Rachel Xu"
+date: "9/7/2021"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+cen.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/16SrRNA/dataset2/centrifuge"
+
+```
+
+```{r}
+
+
+files <- list.files(file.path(cen.path, "output"))
+
+unclassified_domains <- c("unclassified Bacteria", "unclassified Archaea", "unclassified Archaea", "unclassified viruses", "other sequences")
+report_genus <- data.frame(Genus=character())
+for(file in files){
+  report <- read.csv(file.path(cen.path, "output", file), sep="\t", header = FALSE)
+  sample_name <- unlist(strsplit(file, ".", fixed = TRUE))[1]
+  report[length(report[,1]) +1, ] <- c(0, report[1,"V2"] + report[2,"V2"], 0, "A", 0,"total reads")
+  
+  report <- report %>%subset(V4 == "G"| V4 == "A" | V4 == "U" | trimws(V6) == "artificial sequences")%>% select(V2, V6) 
+  report$V6 <- trimws(report$V6)
+  report$V2 <- as.integer(report$V2)
+  report_head <- head(report[order(as.integer(report[,1]), decreasing = TRUE) & report$V6 != "total reads" & report$V6 != "Homo" & report$V6 != "unclassified",],11)
+  
+  report[length(report[,1]) +1, ] <- c(as.integer(report[report$V6 == "total reads", "V2"]) - as.integer(report[report$V6 == "unclassified","V2"]) -as.integer(report[report$V6 == "Homo","V2"])- as.integer(report[report$V6 == "artificial sequences","V2"]) -  sum(as.integer(report[trimws(report$V6) %in% trimws(report_head$V6) , "V2"])),"Other_Microbial")
+  
+  report <- report[trimws(report$V6) == "Other_Microbial" | trimws(report$V6) %in% report_head$V6 | report$V6 == "Homo" | report$V6 == "unclassified" | report$V6 == "artificial sequences",]
+
+  colnames(report) <- c(eval(sample_name), "Genus")
+  
+  report_genus <- full_join(report_genus, report)
+}
+
+
+
+report_genus[is.na(report_genus)] <- 0
+head(report_genus)
+report_genus_longer <- report_genus %>% pivot_longer(names_to = "Samples", values_to="Number.Reads", cols= c("barcode06", "barcode07", "barcode08", "barcode09", "barcode10", "barcode11", "barcode12"))
+```
+
+```{r}
+
+library(ggplot2)
+library(scales)
+library(RColorBrewer)
+report_genus_longer$Genus <- trimws(report_genus_longer$Genus)
+top_taxa <- c("unclassified","Homo","artificial sequences","Other_Microbial", "Leptospira")
+report_genus_longer$Genus <- factor(report_genus_longer$Genus, levels=c(top_taxa,unique(report_genus_longer$Genus[!report_genus_longer$Genus %in% top_taxa])))
+
+report_genus_longer$Number.Reads <- as.integer(report_genus_longer$Number.Reads)
+ggplot(report_genus_longer, aes(x=Samples, y= Number.Reads, fill = Genus))+
+  geom_col(aes(position = "stack"))+
+  theme_bw()+
+  scale_fill_manual(values =   c(
+        RColorBrewer::brewer.pal(12,'Paired'),
+        RColorBrewer::brewer.pal(12,'Set3'),
+        RColorBrewer::brewer.pal(12,'Pastel1'),
+        RColorBrewer::brewer.pal(12,'Set1')
+    ))+
+  scale_y_continuous(labels = comma) +
+  theme(axis.text.x = element_text(angle=90), axis.text = element_text(size=12), legend.text = element_text(size=12), legend.title = element_text(size=12))
+
+# ggsave(file.path(cen.path, "figures", "read.overview.pdf"),width =9)
+```
+
+```{r}
+
+files <- list.files(file.path(cen.path, "output"))
+
+unclassified_domains <- c("unclassified Bacteria", "unclassified Archaea", "unclassified Archaea", "unclassified viruses", "other sequences")
+report_lepto <- data.frame(Leptospira.Species=character())
+for(file in files){
+  
+  sample_name <- unlist(strsplit(file, ".", fixed = TRUE))[1]
+  
+  report <- read.csv(file.path(cen.path, "output", file), sep="\t", header = FALSE)
+  report$V6 <- trimws(report$V6)
+  report <- report %>% subset(V4 == "G" |V4 == "S" )%>%subset( grepl("Leptospira",V6)) %>% select(V2, V6)
+  
+  report[length(report)+1,] <- c(report[report$V6 == "Leptospira", "V2"] - sum(report[report$V6 != "Leptospira", "V2"]), "Unclassified.Leptospira")
+  
+  report <- report[report$V6 != "Leptospira",]
+  
+  colnames(report) <- c(eval(sample_name), "Leptospira.Species")
+  
+  report_lepto <- full_join(report_lepto, report)
+}
+
+report_lepto[is.na(report_lepto)] <- 0
+report_lepto_longer <- report_lepto %>% pivot_longer(names_to = "Samples", values_to = "Number.Reads", cols=c("barcode06", "barcode07", "barcode08", "barcode09", "barcode10", "barcode11", "barcode12"))
+
+report_lepto_longer$Number.Reads <- as.integer(report_lepto_longer$Number.Reads)
+report_lepto_longer_per <- report_lepto_longer %>% group_by(Samples) %>% mutate(Total.Lepto.Reads = sum(Number.Reads)) %>% mutate(Percentage.Reads = round((Number.Reads/ Total.Lepto.Reads)*100,2)) %>% pivot_longer(names_to = "Type", values_to = "Values", cols = c("Number.Reads", "Percentage.Reads"))
+report_lepto_longer_per
+```
+
+```{r}
+
+library(ggplot2)
+
+report_lepto_longer_per
+ggplot(report_lepto_longer_per, aes(x=Samples, y= Values, fill= Leptospira.Species))+
+  geom_col(position="stack")+
+  facet_wrap(~Type, scales = "free_y")+
+  theme_bw()+
+  scale_y_continuous(labels = comma) +
+  theme(axis.text.x = element_text(angle=90), axis.text = element_text(size=12), legend.text = element_text(size=12), legend.title = element_text(size=12))
+
+ggsave(file.path(cen.path, "figures", "Leptospira.species.overview.pdf"),width =9)
+```
