@@ -155,9 +155,9 @@ for (dir in SAMPLES){
       }
 }
 
-
-table(combined_transcript_mapped_top10$read_id)
-length(unique(copenNoPolyA_t$read_id))
+# 
+# table(combined_transcript_mapped_top10$read_id)
+# length(unique(copenNoPolyA_t$read_id))
 ```
 
 # Combined
@@ -206,10 +206,10 @@ library(ggplot2)
 combined_transcript_mapped_top10
 combined_transcript_mapped_top10<-combined_transcript_mapped_top10 %>% unite("x_label", c(product_accession,name), remove = FALSE,sep="\n")
 combined_transcript_mapped_top10$x_label <- factor(combined_transcript_mapped_top10$x_label, levels = sort(unique(combined_transcript_mapped_top10$x_label)))
-
-plot_topMap <- ggplot(combined_transcript_mapped_top10, aes(x=x_label,fill=tail_is_valid))+
+unique(combined_transcript_mapped_top10$polya_status)
+plot_topMap <- ggplot(combined_transcript_mapped_top10 %>% subset(polya_status !="noPolyA_Q"), aes(x=x_label,fill=tail_is_valid))+
   geom_bar(position =position_dodge(preserve = "single"), stat = "count")+
-  facet_wrap(Sample ~ polya_status , scale="free")+
+  facet_wrap(Sample ~ polya_status , scale="free",ncol=2)+
   theme_bw()+
   theme(axis.text.x = element_text(angle = 90,hjust = 1, vjust =-0.001), axis.text=element_text(size=10), axis.title=element_text(size=12), legend.text = element_text(size=12), legend.title = element_text(size=12))+
   labs(y="Number of Reads Mapped to Transcript") +
@@ -228,5 +228,93 @@ ggsave(file.path(tailfindr.path, "tailfindr", "figures", "Top10MapTranscripts.pd
 # # 
 # plot_read
 # ggsave(file.path(tailfindr.path, "tailfindr", "figures", "Top10MapTranscriptsReadType.pdf"), plot_read,width = 20,height = 40)
+
+```
+# Direct RNA samples tailfindr analysis output
+```{r}
+
+library(dplyr)
+library(ggplot2)
+
+# transcript annotation
+tailfindr.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/polyATail_cDNA_Copen_072021/"
+transcript.annot <- read.csv(file.path(tailfindr.path, "reference","GCF_000007685.1_ASM768v1_feature_table.txt"), sep="\t") %>% subset(X..feature == "CDS") %>% select(-c("X..feature", "class", "assembly", "assembly_unit", "seq_type", "related_accession", "GeneID", "locus_tag","attributes"))
+
+
+direct.tail.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA_trans_09012021/tailfindr"
+
+top_10_mapped_transcript_all_sample <- data.frame(non.redundant_refseq = character(), number.reads.mapped= character(), chromosome= character(), start=integer(), end=integer(), strand= character(), name= character(), symbol= character(), feature_interval_length=integer(), product_length=integer(), plot.label= character(), sample= character())
+
+top_10_mapped_transcript_tail_all <- data.frame(non.redundant_refseq = character(), number.reads.mapped= character(), chromosome= character(), start=integer(), end=integer(), strand= character(), name= character(), symbol= character(), feature_interval_length=integer(), product_length=integer(), plot.label= character(), sample= character(), read_id= character(), tail_start=integer(), tail_end=integer(), tail_length=integer())
+for(file in list.files(direct.tail.path, pattern = "*.annotated.csv")){
+  
+sample_name_str <- unlist(strsplit(file, "_", fixed = TRUE))
+sample_name <- paste(sample_name_str[1], sample_name_str[2],sample_name_str[4] , sep="_")
+direct.tailfindr.file <- read.csv(file.path(direct.tail.path, file)) %>% mutate(non.redundant_refseq = sapply(transcript_id, function(x){
+  s1 <- unlist(strsplit(x, "_", fixed=TRUE))
+  paste(s1[4], s1[5],sep="_")
+}))
+
+direct.tailfindr.map.count <- direct.tailfindr.file  %>% group_by(non.redundant_refseq) %>% summarise(number.reads.mapped=n()) %>% arrange(desc(number.reads.mapped))
+
+top_10_mapped_transcript <- left_join(direct.tailfindr.map.count, transcript.annot, by="non.redundant_refseq") %>% select(c(
+non.redundant_refseq, number.reads.mapped, chromosome, start, end, strand, name, symbol, feature_interval_length, product_length))%>% arrange(desc(number.reads.mapped)) %>% head(10) %>% mutate(plot.label=paste(non.redundant_refseq, name, sep="\n")) %>% mutate(sample=sample_name)
+
+top_10_mapped_transcript_all_sample <- rbind(top_10_mapped_transcript_all_sample, top_10_mapped_transcript)
+
+top_10_mapped_transcript_tail <- left_join(top_10_mapped_transcript, direct.tailfindr.file, by="non.redundant_refseq") %>% mutate(plot.label=paste(non.redundant_refseq, name, sep="\n")) %>% mutate(sample=sample_name) %>% select(-c("file_path","transcript_id", "samples_per_nt","mapping_quality", "sam_flag")) 
+
+top_10_mapped_transcript_tail_all <- rbind(top_10_mapped_transcript_tail_all, top_10_mapped_transcript_tail)
+
+}
+
+top_10_mapped_transcript_all_sample %>% subset(non.redundant_refseq=="WP_000389641.1")
+
+p1 <- ggplot(top_10_mapped_transcript_all_sample, aes(x=plot.label, y= number.reads.mapped))+
+  geom_col()+
+  facet_wrap(~sample, scale="free")+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 90,hjust=0.95,vjust=0.2))+
+  labs(x="Top 10 Mapped Transcripts")
+
+p2 <- ggplot(top_10_mapped_transcript_tail_all, aes(x=plot.label, y=tail_length))+
+  geom_violin()+
+  geom_boxplot(width=0.1, outlier.shape = NA)+
+  facet_wrap(~sample, scale="free")+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 90,hjust=0.95,vjust=0.2))+
+  labs(x="Top 10 Mapped Transcripts")
+p2
+ggsave(file.path(direct.tail.path, "figures", "tailfindr.top.10.mapped.transcript.pdf"), p1,height = 10,width = 9)
+ggsave(file.path(direct.tail.path, "figures", "tailfindr.top.10.mapped.transcript.tailLength.pdf"), p2,height = 10,width = 9)
+
+```
+# compare read length from nanopolish and tailfindr
+```{r}
+
+tailfindr.read.length <- data.frame(read_id=character(), tail_length=integer())
+for(file in list.files(direct.tail.path, pattern = "*.annotated.csv")){
+tailfindr.file <- read.csv(file.path(direct.tail.path, file)) %>% select(c(read_id, tail_length)) %>% subset(!is.na(tail_length))
+tailfindr.read.length <- rbind(tailfindr.read.length, tailfindr.file)
+}
+file
+read.csv(file.path(direct.tail.path, "Q29_Copenhageni_Direct-RNA_FAST5_Pass.annotated.csv"))
+nano.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA_trans_09012021/nanopolish"
+nanopolish.read.length <- data.frame(readname=character(), polya_length=integer())
+for(file in list.files(nano.path, pattern="*trans.polyA.tsv")){
+nanopolish.file <- read.csv(file.path(nano.path, "Q29_Copenhageni_Direct-RNA_FAST5_Pass.nanopolish.trans.polyA.tsv"), sep="\t") %>% subset(qc_tag == "PASS") %>% select(c(readname, polya_length))
+}
+colnames(nanopolish.file) <- c("read_id", "tail_length.nano")
+
+
+
+combined_software <- full_join(tailfindr.read.length,nanopolish.file,by="read_id" ) %>% subset(!is.na(tail_length.nano))%>% subset(!is.na(tail_length))
+
+p3 <- ggplot(combined_software, aes(x= tail_length, y= tail_length.nano))+
+  geom_point()+
+  theme_bw()+
+  labs(x="Tailfindr polyA tail estimation", y = "Nanopolish polyA tail estimation")
+p3
+
 
 ```

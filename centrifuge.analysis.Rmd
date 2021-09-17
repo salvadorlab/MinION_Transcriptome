@@ -7,6 +7,8 @@ output:
   html_document: default
 ---
 
+This document is for taxonomic analysis using **centrifuge** for minION sequenced metagenomics sequencing samples collected from water and soil
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -104,7 +106,7 @@ report_lepto_longer <- report_lepto %>% pivot_longer(names_to = "Samples", value
 
 report_lepto_longer$Number.Reads <- as.integer(report_lepto_longer$Number.Reads)
 report_lepto_longer_per <- report_lepto_longer %>% group_by(Samples) %>% mutate(Total.Lepto.Reads = sum(Number.Reads)) %>% mutate(Percentage.Reads = round((Number.Reads/ Total.Lepto.Reads)*100,2)) %>% pivot_longer(names_to = "Type", values_to = "Values", cols = c("Number.Reads", "Percentage.Reads"))
-report_lepto_longer_per
+# report_lepto_longer_per
 ```
 
 ```{r}
@@ -119,5 +121,5 @@ ggplot(report_lepto_longer_per, aes(x=Samples, y= Values, fill= Leptospira.Speci
   scale_y_continuous(labels = comma) +
   theme(axis.text.x = element_text(angle=90), axis.text = element_text(size=12), legend.text = element_text(size=12), legend.title = element_text(size=12))
 
-ggsave(file.path(cen.path, "figures", "Leptospira.species.overview.pdf"),width =9)
+# ggsave(file.path(cen.path, "figures", "Leptospira.species.overview.pdf"),width =9)
 ```

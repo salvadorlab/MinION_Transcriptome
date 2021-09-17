@@ -1,0 +1,163 @@
+---
+title: "kraken2.minION"
+author: "Rachel Xu"
+date: "9/13/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+kraken2.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/16SrRNA/dataset2/kraken2"
+```
+
+### combined kreport 
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+kreport <- read.csv(file.path(kraken2.path, "combined.kreport"), sep = "\t", skip = 9)
+
+kreport$name <- trimws(kreport$name)
+
+kreport_species <- kreport %>% subset(lvl_type== "S") %>% select(ends_with("_all"),name) %>% select(-c("tot_all")) 
+colnames(kreport_species) <- c("barcode06","barcode07","barcode08","barcode09","barcode10","barcode11","barcode12", "Species_TAXA")
+kreport_species_longer <- kreport_species %>% pivot_longer(names_to = "Samples", values_to = "Read.Count", cols = starts_with("barcode"))
+# kreport_species 
+```
+## format taxa table from mpa format outputs
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# mpa.taxa <- read.csv(file.path(kraken2.path, "combined.mpa"), sep = "\t")
+# mpa.taxa
+# colnames(mpa.taxa) <- c("Classification", "barcode06","barcode07","barcode08","barcode09","barcode10","barcode11","barcode12")
+# taxa_table <- mpa.taxa %>% subset(grepl("s__", Classification)) 
+# 
+# TAXA_TABLE<- data.frame(Domain=character(), Phylum=character(), Class=character(), Order=character(), Family=character(), Genus=character(), Species=character())
+# 
+# for(row in taxa_table[,"Classification"]){
+#   s1 <- unlist(strsplit(row, "|", fixed = TRUE))
+#   d <- ifelse(sum(grepl("d__",s1))==1, s1[grepl("d__",s1)], "")
+#   p <- ifelse(sum(grepl("p__",s1))==1, s1[grepl("p__",s1)], "")
+#   c <- ifelse(sum(grepl("c__",s1))==1, s1[grepl("c__",s1)], "")
+#   o <- ifelse(sum(grepl("o__",s1))==1, s1[grepl("o__",s1)], "")
+#   f <- ifelse(sum(grepl("f__",s1))==1, s1[grepl("f__",s1)], "")
+#   g <- ifelse(sum(grepl("g__",s1))==1, s1[grepl("g__",s1)], "")
+#   s <- ifelse(sum(grepl("s__",s1))==1, s1[grepl("s__",s1)], "")
+#   
+#   current_taxa <- data.frame(Domain=d, Phylum=p, Class=c, Order=o, Family=f, Genus=g, Species = s)
+#   # print(current_taxa)
+#   TAXA_TABLE <- rbind(TAXA_TABLE, current_taxa)
+# }
+# 
+# 
+# taxa_table <- TAXA_TABLE %>%  mutate(Species_TAXA = sapply(Species, function(x){
+#     unlist(strsplit(x, "__", fixed = TRUE))[2]
+#   })) %>% select(-starts_with("barcode"))
+
+# write.csv(taxa_table, file.path(kraken2.path, "taxa_table.txt"), sep="\t", quote = FALSE, row.names = FALSE)
+
+```
+# combine species otu with taxa
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+taxa_table <- read.csv(file.path(kraken2.path, "taxa_table.txt"))
+# kreport_species
+genus_summary <- left_join(kreport_species_longer, taxa_table)
+
+# Find the top 10 bacteria genus and combine rest of the bacterial genus taxa
+bacteria_summary <- genus_summary %>% subset(grepl("Bacteria",Domain)) %>% group_by(Genus) %>% group_by(Samples, Genus) %>%summarise(Genus.Reads = sum(Read.Count)) %>% arrange(desc(Genus.Reads)) 
+top_10_genus <- bacteria_summary %>% group_by(Samples) %>% slice(1:11) %>% subset(Genus != "")
+# top_10_genus
+
+other.microbial <- anti_join(bacteria_summary, top_10_genus,by=c("Samples","Genus"))  %>% group_by(Samples)%>% summarise(Genus = "g__Other.Bacteria.Genus",Genus.Reads=sum(Genus.Reads))
+
+unique(genus_summary$Domain)
+# reads assign to rest of the domain were combined into one category
+all_viroids <- genus_summary %>% subset(grepl("Viroids",Domain)) %>% group_by(Samples)%>% summarise(Genus ="d__all_Viroids", Genus.Reads = sum(Read.Count))
+all_archaea <- genus_summary %>% subset(grepl("Archaea",Domain)) %>% group_by(Samples)%>% summarise(Genus ="d__all_Archaea", Genus.Reads = sum(Read.Count))
+all_virus <- genus_summary %>% subset(grepl("Viruses",Domain)) %>% group_by(Samples)%>% summarise(Genus ="d__all_Viruses", Genus.Reads = sum(Read.Count))
+all_eu <- genus_summary %>% subset(grepl("Eukaryota",Domain)) %>% group_by(Samples)%>% summarise(Genus ="d__all_Eukaryota", Genus.Reads = sum(Read.Count))
+# unclassified reads
+kreport <- read.csv(file.path(kraken2.path, "combined.kreport"), sep = "\t", skip = 9)
+unclassified <- kreport %>% subset(lvl_type == "U") %>% select(ends_with("_all")) %>% select(!"tot_all") 
+colnames(unclassified) <- c("barcode06","barcode07","barcode08","barcode09","barcode10","barcode11","barcode12")
+unclassified_longer <- unclassified %>% pivot_longer(names_to = "Samples", values_to = "Genus.Reads", cols = c("barcode06","barcode07","barcode08","barcode09","barcode10","barcode11","barcode12"))
+unclassified_longer$Genus <- "x__unclassified"
+
+combined_Genus_stat <- rbind(top_10_genus, other.microbial, all_eu ,all_viroids,all_archaea, all_virus,unclassified_longer)
+```
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+library(ggplot2)
+library(scales)
+special.taxa <- c("x__unclassified","d__all_Eukaryota","d__all_Archaea", "d__all_Viruses", "d__all_Viroids" ,"g__Other.Bacteria.Genus")
+combined_Genus_stat$Genus <- factor(combined_Genus_stat$Genus, levels= c(special.taxa, unique(combined_Genus_stat$Genus[!combined_Genus_stat$Genus %in% special.taxa])))
+p <- ggplot(combined_Genus_stat, aes(x=Samples, y=Genus.Reads, fill=Genus))+
+  geom_col()+
+  theme_bw()+
+  scale_fill_manual(values =   c(
+    
+        RColorBrewer::brewer.pal(12,'Paired'),
+        RColorBrewer::brewer.pal(12,'Set3'),
+        RColorBrewer::brewer.pal(12,'Pastel1'),
+        RColorBrewer::brewer.pal(12,'Set1')
+        
+    ))+
+  scale_y_continuous(labels = comma) +
+  theme(axis.text.x = element_text(angle=90), axis.text = element_text(size=12), legend.text = element_text(size=12), legend.title = element_text(size=12))
+
+library(plotly)
+ggplotly(p)
+# ggsave("/Users/rx32940/Dropbox/5.Rachel-projects/16SrRNA/dataset2/figures/kraken2/Microbial_composition_overview.pdf",p,width = 9)
+# combined_Genus_stat
+```
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+mpa.taxa <- read.csv(file.path(kraken2.path, "combined.mpa"), sep = "\t")
+
+colnames(mpa.taxa) <- c("Classification", "barcode06","barcode07","barcode08","barcode09","barcode10","barcode11","barcode12")
+lepto.genus <- mpa.taxa %>% subset(grepl("g__", Classification))%>%subset(grepl("g__Leptospira", Classification))
+
+lepto.genus.longer <- lepto.genus %>% pivot_longer(names_to = "Samples", values_to = "Reads", cols = c("barcode06","barcode07","barcode08","barcode09","barcode10","barcode11","barcode12"))
+# lepto.genus.longer
+classified.lepto <- lepto.genus.longer %>% subset(grepl("s__", Classification) & !grepl("Leptospira sp. ", Classification)) %>% group_by(Samples) %>% summarise(Classified.Reads = sum(Reads))
+
+total.lepto <- lepto.genus.longer %>% subset(Classification =="d__Bacteria|p__Spirochaetes|c__Spirochaetia|o__Leptospirales|f__Leptospiraceae|g__Leptospira")
+
+unclassified.sp <- left_join(classified.lepto, total.lepto) %>% mutate(unclassified.lepto = Reads-Classified.Reads) %>% select(c(Samples, unclassified.lepto)) %>% rename(Reads = unclassified.lepto) %>%mutate(Leptospira.species = "s__unclassified.Lepto.sp.")
+
+lepto.species <- lepto.genus.longer %>% subset(grepl("s__", Classification) & !grepl("Leptospira sp. ", Classification)) %>% mutate(Leptospira.species = sapply(Classification, function(x){
+  s1 <- unlist(strsplit(x, "|", fixed =TRUE))
+  s1[length(s1)]
+})) %>% select(-c("Classification"))
+# lepto.species
+
+final_lepto <- rbind(lepto.species, unclassified.sp)
+final_lepto_perc <- final_lepto %>% group_by(Samples) %>% mutate(Percentage.Lepto = Reads/sum(Reads)*100) %>% pivot_longer(names_to = "Stat", values_to = "Reads", cols = c(Reads,Percentage.Lepto ))
+# final_lepto_perc
+final_lepto_perc$Stat <- factor(final_lepto_perc$Stat, levels= c("Reads", "Percentage.Lepto"))
+
+p1 <- ggplot(final_lepto_perc, aes(x= Samples, y= Reads, fill= Leptospira.species))+
+  geom_col()+
+  facet_wrap(~Stat, scales = "free_y")+
+  theme_bw()+
+  scale_fill_manual(values =   c(
+        RColorBrewer::brewer.pal(12,'Paired'),
+        RColorBrewer::brewer.pal(12,'Set3'),
+        RColorBrewer::brewer.pal(12,'Pastel1'),
+        RColorBrewer::brewer.pal(12,'Set1')
+    ))+
+  scale_y_continuous(labels = comma) +
+  theme(axis.text.x = element_text(angle=90), axis.text = element_text(size=12), legend.text = element_text(size=12), legend.title = element_text(size=12))
+
+
+library(plotly)
+ggplotly(p1)
+# ggsave( "/Users/rx32940/Dropbox/5.Rachel-projects/16SrRNA/dataset2/figures/kraken2/Leptospira_composition.pdf",p1,width=12)
+# lepto.genus.longer %>% subset(grepl("s__", Classification) & !grepl("Leptospira sp. ", Classification)) #
+# lepto.genus.longer%>% subset( grepl("Leptospira sp. ", Classification))
+```
+
