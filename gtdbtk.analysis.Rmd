@@ -1,0 +1,26 @@
+---
+title: "gtdb_tk"
+author: "Rachel Xu"
+date: "9/20/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+gtdb.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/16SrRNA/dataset2/assembly/gtdb.tk"
+
+all_class <- data.frame(sample=character(),user_genome = character(), classification=character(), fastani_reference=character(), fastani_ani=double(), fastani_af = double(), aa_percent=double(), classification_method =character())
+for (file in list.files(file.path(gtdb.path, "output"))){
+  sample <- unlist(strsplit(file, ".", fixed = TRUE))[1]
+  cur_file <- read.csv(file.path(gtdb.path, "output", file), sep="\t") %>% select(c(classification, fastani_reference, fastani_ani, fastani_af, aa_percent,  classification_method))
+
+  cur_file$sample <- sample 
+  all_class <- rbind(all_class, cur_file)
+  
+}
+all_class
+```

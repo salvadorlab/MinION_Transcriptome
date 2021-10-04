@@ -1,0 +1,119 @@
+---
+title: "cDNA_map_stat"
+author: "Rachel Xu"
+date: "10/4/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+cdna.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/cDNA"
+trans.path <- file.path(cdna.path, "transcriptome")
+ref.path <- file.path(cdna.path, "../reference")
+```
+
+### Reference Transcriptome Feature Table
+- reformat the headers of "GCF_000007685.1_ASM768v1_cds_from_genomic.fna" file
+- take locus_id, protein_id and Protein_name from each transcript in the file
+```{r}
+
+cds.headers <- readLines(file.path(ref.path, "GCF_000007685.1_cds_headers.txt"))
+
+
+process_rows <- function(x){
+  substrs<- unlist(strsplit(x,"[" , fixed = TRUE))
+  data.frame(headers = substrs[1],
+             gene.name=ifelse(identical(substrs[grep("gene=", substrs)], character(0)), "", substrs[grep("gene=", substrs)]), 
+             locus.tag = substrs[grepl("locus_tag=",substrs)], 
+             protein_id = ifelse(identical(substrs[grep("protein_id=", substrs)], character(0)), "", substrs[grep("protein_id=", substrs)]),
+             protein_name =ifelse(identical(substrs[grep("protein=", substrs)], character(0)), "", substrs[grep("protein=", substrs)]))
+}
+
+all_rows <- sapply(cds.headers, process_rows, simplify = FALSE)
+
+cds.headers.df <-do.call(rbind, all_rows)
+
+edit_str <- function(x){
+  s <- unlist(strsplit(x, "=", fixed=TRUE))
+  substr(trimws(s[2]), 1, nchar(trimws(s[2]))-1)
+}
+
+cds.headers.df.edited <- cds.headers.df %>% mutate(headers= trimws(substr(headers, 2, nchar(headers)))) %>% mutate(gene.name = sapply(gene.name, edit_str)) %>% mutate(locus.tag = sapply(locus.tag, edit_str)) %>% mutate(protein_id = sapply(protein_id, edit_str)) %>% mutate(protein_name = sapply(protein_name, edit_str))
+
+row.names(cds.headers.df.edited) <- NULL
+
+# write.csv(cds.headers.df.edited, file.path(ref.path, "GCF_000007685.1_cds_headers_table.txt"), row.names = FALSE, quote = FALSE)
+```
+
+# cDNA Mapping statistics
+
+## Map to transcriptome
+- process mapping statistics from qualimap's genome_results.txt file
+- **reference** : GCF_000007685.1_ASM768v1_cds_from_genomic.fna
+- use command ```awk '/^\>\>\>\>\>\>\>\ Coverage\ per\ contig/ {y=1; next} y!= 0{print}' genome_results.txt > transcript_cov_stats.txt``` to extract mapping statistics for each transcript
+```{r}
+library(dplyr)
+
+# transcriptome feature reference
+# only CDS kept, other features such as tRNA doesn't have non.redundant_refseq, was removed 
+trans.ref <- read.csv(file.path(ref.path, "GCF_000007685.1_ASM768v1_feature_table.txt"), sep = '\t') %>% subset(X..feature != "gene") %>% select(c(chromosome, start, end, strand, non.redundant_refseq, locus_tag,name, symbol, feature_interval_length))
+
+cds.headers.file <- read.csv(file.path(ref.path, "GCF_000007685.1_cds_headers_table.txt"))
+
+qualimap <- file.path(trans.path, "qualimap")
+
+
+trans.summary <- data.frame(sample=character(), sample_abb=character(), strain=character(),isPolyA = character(),Total.Transcripts=integer() , Number.Transcript.Mapped = integer(), average.mapped.cov=numeric())
+for(file in list.dirs(file.path(qualimap),recursive = FALSE)){
+  
+  sample=basename(file)
+  str <- unlist(strsplit(sample, "_"))
+  strain <- str[1]
+  polya_status <- str[grepl("PolyA", str)]
+  sample_abb <- paste(str[1], polya_status,sep=".")
+  trans.stat.file <- read.csv(file.path(qualimap, sample, "transcript_cov_stats.txt"), skip= 1 , sep="\t", header=FALSE) %>% select(-V1)
+  colnames(trans.stat.file) <- c("Name", "Length", "Mapped bases", "Mean coverage", "Standard deviation")
+  
+  trans.stats <- trans.stat.file %>% mutate(non.redundant_refseq = sapply(Name, function(x){
+    s <- unlist(strsplit(x, "_", fixed=TRUE))
+    paste(s[4], s[5], sep="_")
+  })) %>% rename(headers=Name) # length reported by qualimap are length of the CDS instead of mapping length
+  
+  trans.stats.anot <- left_join(trans.stats, cds.headers.file) %>% rename(locus_tag = locus.tag)
+  trans.stats.anot <- left_join(trans.stats.anot, trans.ref, by=c("locus_tag"))[c("headers","non.redundant_refseq.x", "non.redundant_refseq.y","Mean coverage", "Mapped bases","Standard deviation", "gene.name","locus_tag", "protein_id","protein_name", "name", "symbol", "chromosome", "start", "end", "strand", "feature_interval_length")]
+  
+  
+  cur_data <- data.frame(sample=sample, 
+                         sample_abb=sample_abb,
+                         strain=strain,
+                         isPolyA = polya_status,
+                         Total.Transcripts = length(trans.ref$non.redundant_refseq),
+                         Number.Transcript.Mapped = length(trans.stats.anot[trans.stats.anot$`Mean coverage` != 0,1]),
+                         average.mapped.cov = mean(trans.stats.anot$`Mean coverage`))
+  trans.summary <- rbind(trans.summary, cur_data)
+}
+trans.summary
+trans.summary <- trans.summary %>% group_by(sample_abb) %>% summarise( sample = sample,sample_abb=sample_abb, strain=strain, isPolyA=isPolyA, Total.Transcripts=Total.Transcripts, Number.Transcript.Mapped= mean(Number.Transcript.Mapped), average.mapped.cov
+=mean(average.mapped.cov)) %>% subset(sample != "Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail_Qiagen" )
+trans.summary
+library(ggplot2)
+library(tidyr)
+trans.summary.longer
+trans.summary.longer <- trans.summary %>% pivot_longer(names_to="transcripts", values_to="Number.Mapped", c(Total.Transcripts, Number.Transcript.Mapped))
+trans.summary.longer$transcripts <- factor(trans.summary.longer$transcripts, levels = c("Total.Transcripts", "Number.Transcript.Mapped"))
+trans.summary.longer$isPolyA <- factor(trans.summary.longer$isPolyA, levels = c("PolyATail", "NoPolyATail"))
+ggplot(trans.summary.longer, aes(x=sample_abb,y = Number.Mapped, fill=transcripts))+
+  geom_bar(stat = "identity", position = "dodge")+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=90))+
+  facet_wrap(~isPolyA, scales = "free")+
+  labs(x="Samples", y="Number.Uniquely.Mapped.Transcripts")
+trans.summary.longer
+ggplot(trans.summary.longer %>% subset(transcripts == "Number.Transcript.Mapped"), aes(x=sample_abb, y= average.mapped.cov, fill=strain))+
+  geom_bar(stat="identity")+
+  theme_bw()+theme(axis.text.x=element_text(angle=90))+
+  facet_wrap(~isPolyA, scales = "free_x")
+```

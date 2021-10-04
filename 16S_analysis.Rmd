@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo = FALSE, results = "hide", message=FALSE,warning = FA
 ```{r}
 
 
-rna.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/16SrRNA"
+rna.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/16SrRNA/dataset1"
 
 
 ```
