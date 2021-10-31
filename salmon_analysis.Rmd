@@ -18,7 +18,7 @@ library(tidyr)
 
 # list samples, read int metadata
 ```{r}
-user <- "rachel"
+user <- "rx32940"
 
 
 dir <- paste0(paste0("/Users/",user),"/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/quant_results/")
@@ -97,11 +97,11 @@ salmon_direct_meta <- direct_rna_meta[,c("samples","condition")]
 library("DESeq2")
 ddsTxi <- DESeqDataSetFromTximport(txi,
                                    colData = salmon_direct_meta,
-                                   ~ condition)
+                                   ~ samples+condition)
 
 ddsTxi$condition <- relevel(ddsTxi$condition, ref="Q29")
 
-salmon.deseq <- DESeq(ddsTxi)
+salmon.deseq <- DESeq(ddsTxi, test="LRT", reduced = "~samples")
 
 deseq.results <- DESeq2::results(salmon.deseq)
 deseq.results<-deseq.results[order(deseq.results$padj),]
@@ -226,7 +226,8 @@ plotCounts(ddsTxi,"gene-LIC_RS00275", main="rlpA(gene-LIC_RS00275)-downregulated
 plotCounts(ddsTxi, "gene-LIC_RS00005",main="dnaA(gene-LIC_RS00005)" )
 plotCounts(ddsTxi,"gene-LIC_RS00015", main="recF(gene-LIC_RS00015)")
 plotCounts(ddsTxi,"gene-LIC_RS00025", main="gyrB(gene-LIC_RS00025)")
-
+plotCounts(ddsTxi,"gene-LIC_RS05505", main="pcnB(gene-LIC_RS05505)")
+plotCounts(ddsTxi,"gene-LIC_RS13855", main="PNPase(gene-LIC_LIC_RS13855)")
 ```
 
 
@@ -513,9 +514,46 @@ ggplot(upreg.count_longer,aes(x=temperature, y=count,shape=replicate))+
   theme_bw() +
   labs(y="Normalized Counts Per Million (Counts)")
 
-count.df.annot %>% subset(salmon_tax=="gene-LIC_RS11285")
+
 ```
 
+### plot genes with interest
+```{r}
+# list of highest coverage transcript from cDNA polyA vs. nonpolyA comparsion
+cdna.top10.cov.transcript <- read.csv("/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/cDNA/transcriptome/cDNA_top10Mapped_transcript_statistics.csv")%>% select(-c("X")) %>% mutate(match_locus = sapply(locus_tag, function(x){
+  paste0("gene-", x)
+}))
+
+# unique locus name from top mapped cDNA samples
+locus_names <- unique(cdna.top10.cov.transcript$match_locus)
+
+edgeR_salmonDF %>% subset(salmon_tax %in% locus_names) %>% subset(diffexpressed != "Not differentially expressed")
+edgeR_salmonDF %>% subset(salmon_tax %in% locus_names) %>% subset(FDR < 0.05)
+
+count.df.annot <- read.csv( "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA.Samples.Results/Diff.Exp.Genes/normalized.gene.counts.allgenes.DRNA.edgeR.csv") %>% select(-c("X"))
+
+plot_gene <- function(gene){
+df <- count.df.annot %>% subset(salmon_tax==gene) 
+df <- df %>% pivot_longer(colnames(df)[-c(1,2)], names_to = "sample", values_to="count") %>% mutate(label=paste0(df$gene_name[1]," (", df$salmon_tax[1], ")"))
+df
+df$condition <- c(rep("Q29",2), rep("Q36",2))
+df$replicate <- rep(c("R2", "R1"),2)
+ggplot(df, aes(x= condition, y = count,color=replicate))+
+  geom_point(stat="identity", size=5)+
+  theme_bw()+
+  labs(y="Normalized Counts Per Million (Counts)",title = df$label[1])+
+  theme(title = element_text(size=12),text = element_text(size=12), legend.text = element_text(size = 12), legend.title = element_text(size=12), axis.text = element_text(size=12))
+}
+
+
+plot_gene("gene-LIC_RS13855")
+
+
+top.trans.plots <- lapply(locus_names, plot_gene)
+
+library(gridExtra)
+do.call(grid.arrange,  c(top.trans.plots, ncol=2))
+```
 
 
 

@@ -81,16 +81,16 @@ for(file in list.dirs(file.path(qualimap),recursive = FALSE)){
   trans.stats <- trans.stat.file %>% mutate(non.redundant_refseq = sapply(Name, function(x){
     s <- unlist(strsplit(x, "_", fixed=TRUE))
     paste(s[4], s[5], sep="_")
-  })) %>% rename(headers=Name) # length reported by qualimap are length of the CDS instead of mapping length
-  
-  trans.stats.anot <- left_join(trans.stats, cds.headers.file) %>% rename(locus_tag = locus.tag)
+  })) %>% dplyr::rename(headers=Name) # length reported by qualimap are length of the CDS instead of mapping length
+
+  trans.stats.anot <- left_join(trans.stats, cds.headers.file) %>% dplyr::rename(locus_tag = locus.tag)
   trans.stats.anot <- left_join(trans.stats.anot, trans.ref, by=c("locus_tag"))[c("headers","non.redundant_refseq.x", "non.redundant_refseq.y","Mean coverage", "Mapped bases","Standard deviation", "gene.name","locus_tag", "protein_id","protein_name", "name", "symbol", "chromosome", "start", "end", "strand", "feature_interval_length")]
   
   # get transcripts with top 10 coverage for each sample 
   top.trans <- trans.stats.anot %>% 
     arrange(desc(`Mean coverage`)) %>% 
     head(10) %>% 
-    select(protein_id, protein_name, start, end, strand, `Mean coverage`) %>%
+    select(protein_id, protein_name, locus_tag,start, end, strand, `Mean coverage`) %>%
     mutate(sample=sample_abb) %>% 
     mutate(strain=strain) %>%
     mutate(is.PolyA = polya_status)
@@ -252,23 +252,24 @@ p3 <-ggplot(avg_primary_align_genome, aes(x= Strain, y=Read.Length, fill=is.poly
 
 ```{r}
 
-all.top.trans.edited
+# all.top.trans.edited
 # average mean coverage for the two no polyA added copenhagni samples.
-all.top.trans.edited <-  all.top.trans %>% group_by(sample, protein_id) %>% mutate(`Mean coverage` = mean(`Mean coverage`)) %>% distinct()
-all.top.trans.edited <- all.top.trans.edited %>% mutate(label = paste(protein_id, protein_name, paste(start, end, sep="-"), sep="\n"))
+all.top.trans.edited <-  all.top.trans %>% group_by(sample, locus_tag) %>% mutate(`Mean coverage` = mean(`Mean coverage`)) %>% distinct()
+all.top.trans.edited <- all.top.trans.edited %>% mutate(label = paste(locus_tag, protein_name, paste(start, end, sep="-"), sep="\n"))
 
-all.top.trans.wider <-all.top.trans.edited %>% select(sample, protein_id, `Mean coverage`) %>% pivot_wider(names_from = sample, values_from = `Mean coverage`)
-all.top.trans.wider[is.na(all.top.trans.wider$protein_id),]$protein_id <- "Hypothetical genes"
+all.top.trans.wider <-all.top.trans.edited %>% select(sample, locus_tag, `Mean coverage`) %>% pivot_wider(names_from = sample, values_from = `Mean coverage`)
+# all.top.trans.wider[is.na(all.top.trans.wider$protein_id),]$locus_tag <- "Hypothetical genes"
 
 all.top.trans.edited$label <- factor(all.top.trans.edited$label, levels = c(unique(all.top.trans.edited[order(all.top.trans.edited$start),]$label)))
 
+# write.csv(all.top.trans.edited, file.path(cdna.path, "transcriptome/cDNA_top10Mapped_transcript_statistics.csv"))
 p3 <- ggplot(all.top.trans.edited, aes(x=label, y=`Mean coverage`))+
   geom_bar(stat = "identity") +
   facet_wrap(strain~is.PolyA, scales = "free_x", ncol = 2)+
   theme_bw()+
     theme(axis.text.x=element_text(angle=90,  size = 12,hjust=0.95,vjust=0.2), axis.text = element_text(size=12), legend.title = element_text(size=12), legend.text = element_text(size=12), axis.title = element_text(size=12), strip.text = element_text(size = 12))
-
-ggsave(file.path(man.path, "figures/I.4.top.cov.transcript.cDNA.pdf"), p3,height = 25,width = 15)
+p3
+# ggsave(file.path(man.path, "figures/I.4.top.cov.transcript.cDNA.pdf"), p3,height = 25,width = 15)
 
 ```
 
@@ -333,7 +334,7 @@ cov_files <- list.files(file.path(gen.path, "qualimap"), pattern = "*coverage_ac
 cov_files.edited <- cov_files[seq(3,length(cov_files))] # take out the original two no polyA copenhageni file from the file list
 all_samples <- list()
 
-all_cdna_plots <- lapply(cov_files.edited, plot_cov)
+
 plot_cov <- function(file){
   
   ref.cov <- read.csv(file, sep="\t")
@@ -357,6 +358,10 @@ plot_cov <- function(file){
   p1
     
 }
+
+
+all_cdna_plots <- lapply(cov_files.edited, plot_cov)
+
 require(gridExtra)
 combined_p <- do.call(grid.arrange,  c(all_cdna_plots, ncol=2))
 
