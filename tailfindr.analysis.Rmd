@@ -183,20 +183,42 @@ ggsave(file.path(tailfindr.path,"tailfindr","figures" ,"Num_Read_Type_MapTo_Gen_
 
 
 ```{r}
+library(ggplot2)
+library(psych)
 
 combined_tailLen %>% subset(tail_is_valid==FALSE)
+summary(combined_tailLen %>% subset(MAP_To == "genome" & polya_status == "noPolyA" & Sample == "Copenhageni" & tail_is_valid==TRUE))
 native_polya_mrna <- combined_tailLen %>% subset(Sample == "Copenhageni") %>% subset(grepl("noPolyA", polya_status))  %>% subset(MAP_To == "transcriptome")
 native_polya_mrna
 summary(native_polya_mrna$tail_length)
 
-plot_tailLen <- ggplot(combined_tailLen,aes(x=SampleID, y=tail_length, fill = Sample ))+
-      geom_violin()+
-  facet_grid(read_type~MAP_To, scales = "free_y")+
+combined_tailLen <- combined_tailLen %>% mutate(strain = sapply(Sample, function(x){
+  switch( # get strain abbrivation
+    x,
+    Copenhageni = "LIC",
+    Icterohaemorrhagiae = "LII",
+    Mankarso="LIM",
+    Patoc="LBP"
+  )
+})) %>% mutate(polya= sapply(polya_status, function(x){
+  switch(x,
+  noPolyA="nonpolyA",
+  PolyA ="polyA",
+  noPolyA_Q = "nonpolyA"
+  )
+}) ) %>% mutate(label=paste(strain, polya, sep="-"))
+
+combined_tailLen$label <- factor(combined_tailLen$label, levels= c("LIC-nonpolyA", "LIC-polyA","LII-nonpolyA", "LII-polyA", "LIM-nonpolyA", "LIM-polyA", "LBP-nonpolyA", "LBP-polyA"))
+plot_tailLen <- ggplot(combined_tailLen %>% subset(MAP_To != "transcriptome")  ,aes(x=label, y=tail_length, fill = strain))+
+  geom_boxplot(outlier.size = 1) +
+  facet_grid(~read_type, scales = "free_y")+
   theme_bw()+
-  theme(axis.text = element_text(size=12),axis.text.x = element_text(angle = 45, vjust=0.99,hjust = 1), axis.title = element_text(size=12),strip.text = element_text(size=12),legend.text = element_text(size=12),legend.title = element_text(size=12))+
+  theme(axis.text = element_text(size=12),axis.text.x = element_text(angle = 90, hjust=0.9), axis.title = element_text(size=12),strip.text = element_text(size=12),legend.text = element_text(size=12),legend.title = element_text(size=12))+
   labs(y="Tail Length")
 plot_tailLen
-# ggsave(file.path(tailfindr.path,"tailfindr","figures" ,"tailLength_violin.pdf"),plot_tailLen,width = 8)
+stats <- combined_tailLen %>% subset(MAP_To != "transcriptome") %>% group_by(read_type, polya_status) %>% summarise(median = median(tail_length), min = min(tail_length), max=max(tail_length)) #%>%group_by(read_type, polya_status)%>% summarise(mean = mean(median))
+stats
+# ggsave(file.path(man.path,"figures" ,"I.12. cdna.tailfindr.genome.boxplot.pdf"),plot_tailLen,width = 7)
 ```
 
 ```{r}
@@ -291,14 +313,13 @@ ggsave(file.path(direct.tail.path, "figures", "tailfindr.top.10.mapped.transcrip
 ```
 # compare read length from nanopolish and tailfindr
 ```{r}
-
+direct.tail.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA_trans_09012021/tailfindr"
 tailfindr.read.length <- data.frame(read_id=character(), tail_length=integer())
 for(file in list.files(direct.tail.path, pattern = "*.annotated.csv")){
 tailfindr.file <- read.csv(file.path(direct.tail.path, file)) %>% select(c(read_id, tail_length)) %>% subset(!is.na(tail_length))
 tailfindr.read.length <- rbind(tailfindr.read.length, tailfindr.file)
 }
-file
-read.csv(file.path(direct.tail.path, "Q29_Copenhageni_Direct-RNA_FAST5_Pass.annotated.csv"))
+summary(tailfindr.read.length$tail_length)
 nano.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA_trans_09012021/nanopolish"
 nanopolish.read.length <- data.frame(readname=character(), polya_length=integer())
 for(file in list.files(nano.path, pattern="*trans.polyA.tsv")){
@@ -311,10 +332,11 @@ colnames(nanopolish.file) <- c("read_id", "tail_length.nano")
 combined_software <- full_join(tailfindr.read.length,nanopolish.file,by="read_id" ) %>% subset(!is.na(tail_length.nano))%>% subset(!is.na(tail_length))
 
 p3 <- ggplot(combined_software, aes(x= tail_length, y= tail_length.nano))+
-  geom_point()+
+  geom_point(color="gray")+
   theme_bw()+
-  labs(x="Tailfindr polyA tail estimation", y = "Nanopolish polyA tail estimation")
+  labs(x="Tailfindr polyA tail estimation", y = "Nanopolish polyA tail estimation")+
+  geom_smooth(method='lm')
 p3
 
-
+?lm
 ```

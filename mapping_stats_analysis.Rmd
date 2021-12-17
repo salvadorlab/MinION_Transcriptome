@@ -8,22 +8,27 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 # library(knitr)
-library(tidyverse)
+library(tidyr)
 library(reshape2)
 library(gridExtra)
 library(scales)
 library(readr)
+library(dplyr)
+library(ggplot2)
 
-polyapath <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/polyAtail"
+polyapath <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/directRNA"
+man.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/manuscript/characterize"
 ```
 # example code
 https://www.biostars.org/p/412621/s
 ```{r}
 
-
-samples <- c("Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA","Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA","Q29_Copenhageni_Basecalled-June_11_2020_Repeat_Direct-RNA", "Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA")
-
-samp_ab <- c("Q29.Cop.DRNA","Q36.Cop.DRNA", "Q29.Cop.DRNA.R","Q36.Cop.DRNA.R")
+samples_files <- list.files(file.path(polyapath, "genome", "flagstat"))
+samples <- sapply(samples_files, function(x){
+  s <- unlist(strsplit(x, split=".", fixed= TRUE))
+  s[1]
+})
+samples <- samples[!grepl("_rna_filtered", samples)]
 
 total.reads<- data.frame(sample=c(), total.reads=c())
 
@@ -42,10 +47,19 @@ mapped.supp.trans <- data.frame(sample=c(), supplementary.alignment.trans=c())
 mapped.percentage <- data.frame(sample=c(), mapped.percentage=c())
 mapped.percentage.trans <- data.frame(sample=c(), mapped.percentage.trans=c())
 
-
-for (index in 1:length(samples)){
-  temp_genome_data <- readLines(file.path(polyapath, "genome_sam_stats", paste0(samples[index],".sam.stats")))
-  temp_trans_data <- readLines(file.path(polyapath, "trans_sam_stats", paste0(samples[index],".sam.stats")))
+sample <- "Q36_Copenhageni_Basecalled_May_31_2020_Direct-RNA"
+for (sample in samples){
+  s <- unlist(strsplit(sample, split="[_-]"))
+  sample_abb <- switch(
+    s[length(s)-2],
+    "2020" = "LIC-dRNA-R1",
+    Repeat = "LIC-dRNA-R2",
+  )
+  temp <- s[1]
+  label = paste(sample_abb, temp, sep="-")
+  
+  temp_genome_data <- readLines(file.path(polyapath, "genome", "sam_stats", paste0(sample,"_rna_filtered.sam.stats")))
+  temp_trans_data <- readLines(file.path(polyapath,"transcriptome", "sam_stats", paste0(sample,".sam.stats")))
   
   temp_sn_genome <- grep("^SN",temp_genome_data, value=TRUE)
   temp_sn_trans <- grep("^SN",temp_trans_data, value=TRUE)
@@ -56,22 +70,22 @@ for (index in 1:length(samples)){
   # following number can alse get from samtools view -c $file.bam/sam -F (samtools bit code)
   # check bit code at: http://broadinstitute.github.io/picard/explain-flags.html
   # -F 2304, all primary reads,excluding reads non-primary aligned and supplementary alignment (but not necessarily mapped)
-  total.reads <- rbind(total.reads,data.frame(sample=samp_ab[index], total.reads=c(temp_sn_genome[1,]$Value)))
+  total.reads <- rbind(total.reads,data.frame(sample=label, total.reads=c(temp_sn_genome[1,]$Value)))
   # -F 2308, all primary reads,excluding reads that are not primarily aligned and supplementary alignment (mapped)
-  mapped.reads.genome <- rbind(mapped.reads.genome,data.frame(sample=samp_ab[index], mapped.reads.genome=c(temp_sn_genome[7,]$Value)))
-  mapped.reads.trans <- rbind(mapped.reads.trans,data.frame(sample=samp_ab[index], mapped.reads.trans=c(temp_sn_trans[7,]$Value)))
+  mapped.reads.genome <- rbind(mapped.reads.genome,data.frame(sample=label, mapped.reads.genome=c(temp_sn_genome[7,]$Value)))
+  mapped.reads.trans <- rbind(mapped.reads.trans,data.frame(sample=label, mapped.reads.trans=c(temp_sn_trans[7,]$Value)))
   
   # samtools flagstats results for secondard and supplementary reads stats
-  flagstats.genome <- readLines(file.path(polyapath, "genome_flagstats", paste0(samples[index],".flagstats")))
-  mapped.second.genome <- rbind(mapped.second.genome,data.frame(sample=samp_ab[index], secondary.alignment=unlist(strsplit(flagstats.genome[2], split=" ", fixed=TRUE))[1]))
-  mapped.supp.genome <- rbind(mapped.supp.genome,data.frame(sample=samp_ab[index],supplementary.alignment=unlist(strsplit(flagstats.genome[3], split=" ", fixed=TRUE))[1]))
+  flagstats.genome <- readLines(file.path(polyapath, "genome", "flagstat", paste0(sample,"_rna_filtered.flagstat")))
+  mapped.second.genome <- rbind(mapped.second.genome,data.frame(sample=label, secondary.alignment=unlist(strsplit(flagstats.genome[2], split=" ", fixed=TRUE))[1]))
+  mapped.supp.genome <- rbind(mapped.supp.genome,data.frame(sample=label,supplementary.alignment=unlist(strsplit(flagstats.genome[3], split=" ", fixed=TRUE))[1]))
   
-    flagstats.trans <- readLines(file.path(polyapath, "trans_flagstats", paste0(samples[index],".flagstats")))
-  mapped.second.trans <- rbind(mapped.second.trans,data.frame(sample=samp_ab[index], secondary.alignment.trans=unlist(strsplit(flagstats.trans[2], split=" ", fixed=TRUE))[1]))
-  mapped.supp.trans <- rbind(mapped.supp.trans,data.frame(sample=samp_ab[index],supplementary.alignment.trans=unlist(strsplit(flagstats.trans[3], split=" ", fixed=TRUE))[1]))
+    flagstats.trans <- readLines(file.path(polyapath, "transcriptome", "flagstat", paste0(sample,".flagstat.sam")))
+  mapped.second.trans <- rbind(mapped.second.trans,data.frame(sample=label, secondary.alignment.trans=unlist(strsplit(flagstats.trans[2], split=" ", fixed=TRUE))[1]))
+  mapped.supp.trans <- rbind(mapped.supp.trans,data.frame(sample=label,supplementary.alignment.trans=unlist(strsplit(flagstats.trans[3], split=" ", fixed=TRUE))[1]))
   
-   mapped.percentage <- rbind(mapped.percentage,data.frame(sample=samp_ab[index],mapped.percentage=parse_number(unlist(strsplit(flagstats.genome[5], split=" ", fixed=TRUE))[5])))
-     mapped.percentage.trans <- rbind(mapped.percentage.trans,data.frame(sample=samp_ab[index],mapped.percentage.trans=parse_number(unlist(strsplit(flagstats.trans[5], split=" ", fixed=TRUE))[5])))
+   mapped.percentage <- rbind(mapped.percentage,data.frame(sample=label,mapped.percentage=parse_number(unlist(strsplit(flagstats.genome[5], split=" ", fixed=TRUE))[5])))
+     mapped.percentage.trans <- rbind(mapped.percentage.trans,data.frame(sample=label,mapped.percentage.trans=parse_number(unlist(strsplit(flagstats.trans[5], split=" ", fixed=TRUE))[5])))
 }
 
 
@@ -88,21 +102,67 @@ for (index in 1:length(samples)){
 ```{r}
 map.stats.combined <- merge(merge(total.reads,mapped.reads.genome), mapped.reads.trans)
 
-map.stats.combined
-map.stats.longer <- pivot_longer(map.stats.combined, cols = c("total.reads", "mapped.reads.genome", "mapped.reads.trans"), names_to = "primary.alignment.stats", values_to = "Number")
-map.stats.longer$Number <- as.numeric(map.stats.longer$Number)
-map.stats.longer$primary.alignment.stats <- factor(map.stats.longer$primary.alignment.stats, levels = c("total.reads", "mapped.reads.genome", "mapped.reads.trans"))
-map.stats.longer$sample <- factor(map.stats.longer$sample, levels=c("Q29.Cop.DRNA","Q29.Cop.DRNA.R","Q36.Cop.DRNA", "Q36.Cop.DRNA.R"))
+
+
+map.stats.combined$total.reads <- as.numeric(map.stats.combined$total.reads)
+map.stats.combined$mapped.reads.genome <- as.numeric(map.stats.combined$mapped.reads.genome)
+map.stats.combined$mapped.reads.trans <- as.numeric(map.stats.combined$mapped.reads.trans)
+
+map.stats.combined_perc <- map.stats.combined %>% mutate(mapped.reads.genome = (mapped.reads.genome/total.reads)*100) %>% mutate(mapped.reads.trans = (mapped.reads.trans/total.reads)*100) %>% mutate(total.reads = (total.reads/total.reads)*100)
+
+# summary(map.stats.combined$mapped.reads.trans/ map.stats.combined$mapped.reads.genome)
+# summary(map.stats.combined_perc$mapped.reads.trans)
+# summary(map.stats.combined$total.reads)
+# summary(map.stats.combined$mapped.reads.genome)
+# 969016 - 438950
+map.stats.longer <- pivot_longer(map.stats.combined, cols = c("total.reads", "mapped.reads.genome", "mapped.reads.trans"), names_to = "Reference Type", values_to = "Count")
+
+map.stats.combined_perc_longer <- map.stats.combined_perc %>% pivot_longer(cols = c("total.reads", "mapped.reads.genome", "mapped.reads.trans"), names_to = "Reference Type", values_to = "Percentage")
+
+map.stats.count.per <- left_join(map.stats.longer, map.stats.combined_perc_longer)
+
+map.stats.count.per.longer <- map.stats.count.per %>% pivot_longer(c("Count", "Percentage"), names_to= "stats", values_to = "values") %>% mutate(`Reference Type` = sapply(`Reference Type`, function(x){switch(
+  x,
+  "total.reads" = "Total Reads",
+  "mapped.reads.genome"= "Genome",
+  "mapped.reads.trans"= "Transcriptome"
+)} ))
+
+
+map.stats.count.per.longer$sample <- factor(map.stats.count.per.longer$sample, levels=c("LIC-dRNA-R1-Q29","LIC-dRNA-R2-Q29","LIC-dRNA-R1-Q36", "LIC-dRNA-R2-Q36"))
+map.stats.count.per.longer$`Reference Type` <- factor(map.stats.count.per.longer$`Reference Type`, levels = c("Total Reads", "Genome","Transcriptome" ))
+map.stats.count.per.longer$stats <- factor(map.stats.count.per.longer$stats, levels = c("Count", "Percentage"))
+
 # kable(total.reads, caption="Total Number of Reads")
 
-ggplot(map.stats.longer, aes(x= sample, y= Number))+
-  geom_bar(stat="identity", position=position_dodge2(padding =0),aes(fill=primary.alignment.stats))+
+ggplot(map.stats.count.per.longer, aes(x= sample, y= values))+
+  geom_bar(stat="identity", position=position_dodge2(padding =0),aes(fill=`Reference Type`))+
     theme_bw()+
-  theme(axis.text.x = element_text(angle = 90))+
+  theme(axis.text.x = element_text(angle = 90,hjust=0.95,vjust=0.2), axis.text = element_text(size=12), legend.title = element_text(size=12), legend.text = element_text(size=12), axis.title = element_text(size=12), strip.text = element_text(size = 12))+
+  facet_wrap(~stats, scales = "free")+
   scale_y_continuous(label=comma)+
-  labs(y="Number of Reads")+
+  labs(y="", x= "Samples")+
   scale_fill_manual(values=c("gray", "orange", "blue"))
-  
+
+# ggsave(file.path(man.path, "figures", "II.1.dRNA.Map.quality.pdf"), width=9, height=6)
+  map.stats.count.per.longer
+```
+
+## direct RNA read quality assessment
+- mapped to genome
+- before and after reads filtered out rRNA and cDNA region
+```{r}
+
+# average raw read length from each cDNA samples (fastQC), can be find in the multiqc file QC/dRNA-cDNA-dataset1.html, dataset1 only, no poly A added samples
+drna_read_length <- c(861, 863, 718, 806)
+drna_gc <- c(62,61, 59, 60)
+mean(drna_gc)
+sd(drna_gc)
+
+# after 16S and 23S rRNA filtered and tRNA filtered
+rna_filtered_dRNA <- read.csv(file.path(polyapath, "genome/dRNA_rna_filtered_genome_map_statistics.csv"))
+mean(rna_filtered_dRNA$GC.content) # 38.039
+sd(rna_filtered_dRNA$GC.content) # 4.41885
 ```
 
 # plot primary mapped reads (total vs. genome vs. transcriptome)
@@ -181,5 +241,249 @@ p <- ggplot(gc.content , aes(x= as.numeric(GC), y = as.numeric(Count)/sum(as.num
   labs(x="GC content", y="Count")
 
 ggplotly(p)
+```
+# Top 10 mapped transcript for direct RNA samples
+- these are the top 10 transcripts with higest coverage for each sample
+```{r}
+library(dplyr)
+drna.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/directRNA"
+trans.path <- file.path(drna.path, "transcriptome")
+ref.path <- file.path(drna.path, "../reference")
+man.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/manuscript"
+
+
+library(dplyr)
+
+# transcriptome feature reference
+# only CDS kept, other features such as tRNA doesn't have non.redundant_refseq, was removed 
+trans.ref <- read.csv(file.path(ref.path, "GCF_000007685.1_ASM768v1_feature_table.txt"), sep = '\t') %>% subset(X..feature != "gene") %>% dplyr::select(c(chromosome, start, end, strand, non.redundant_refseq, locus_tag,name, symbol, feature_interval_length))
+
+cds.headers.file <- read.csv(file.path(ref.path, "GCF_000007685.1_cds_headers_table.txt"))
+
+qualimap <- file.path(trans.path, "qualimap")
+
+all.top.trans <- data.frame(sample = character(), protein_id=character(), protein_name=character(), start=integer(), end=integer(), strand=character(),strain=character())
+all.top.trans.100 <- data.frame(sample = character(), protein_id=character(), protein_name=character(), start=integer(), end=integer(), strand=character(),strain=character())
+trans.summary <- data.frame(sample=character(), sample_abb=character(), strain=character(),Total.Transcripts=integer() , Number.Transcript.Mapped = integer(), average.mapped.cov=numeric())
+for(file in list.dirs(file.path(qualimap),recursive = FALSE)){
+  
+  sample=basename(file)
+  s <- unlist(strsplit(sample, split="[_-]"))
+  sample_abb <- switch(
+    s[length(s)-2],
+    "2020" = "LIC-dRNA-R1",
+    Repeat = "LIC-dRNA-R2",
+  )
+  temp <- s[1]
+  label = paste(sample_abb, temp, sep="-")
+  
+  trans.stat.file <- read.csv(file.path(qualimap, sample, "transcript_cov_stats.txt"), skip= 1 , sep="\t", header=FALSE) %>% dplyr::select(-V1)
+  colnames(trans.stat.file) <- c("Name", "Length", "Mapped bases", "Mean coverage", "Standard deviation")
+ 
+  trans.stats <- trans.stat.file %>% mutate(non.redundant_refseq = sapply(Name, function(x){
+    s <- unlist(strsplit(x, "_", fixed=TRUE))
+    paste(s[4], s[5], sep="_")
+  })) %>% dplyr::rename(headers=Name) # length reported by qualimap are length of the CDS instead of mapping length
+
+
+  trans.stats.anot <- left_join(trans.stats,cds.headers.file , by=c("headers")) %>% dplyr::rename(locus_tag = locus.tag) #[c("headers","locus_tag","Mean coverage", "Mapped bases","Standard deviation", "gene.name","locus_tag", "protein_id","protein_name", "name", "symbol", "chromosome", "start", "end", "strand", "feature_interval_length")]
+  
+  trans.stats.anot <- left_join(trans.stats.anot,trans.ref , by=c("non.redundant_refseq"))
+  # if locus tag in one annotation is NA replace by another anot
+trans.stats.anot[is.na(trans.stats.anot$locus_tag.x),c("locus_tag.x")] <- trans.stats.anot[is.na(trans.stats.anot$locus_tag.x), c("locus_tag.y")]
+
+trans.stats.anot <- trans.stats.anot  %>% dplyr::rename(locus_tag=locus_tag.x)
+trans.stats.anot <- left_join(trans.stats.anot,trans.ref )
+
+
+trans.stats.anot
+  # get transcripts with top 10 coverage for each sample 
+  top.trans <- trans.stats.anot %>% 
+    arrange(desc(`Mean coverage`)) %>% 
+    head(10) %>% 
+    dplyr::select(non.redundant_refseq, name, locus_tag,start, end, strand, `Mean coverage`) %>%
+    dplyr::rename(protein_id=non.redundant_refseq, protein_name=name) %>%
+    mutate(sample=label) %>% 
+    mutate(strain=sample_abb) 
+  top.trans
+  all.top.trans <- rbind(all.top.trans,top.trans)
+  
+  top.trans.100 <- trans.stats.anot %>% 
+    arrange(desc(`Mean coverage`)) %>% 
+    head(100) %>% 
+    dplyr::select(non.redundant_refseq, name, locus_tag,start, end, strand, `Mean coverage`) %>%
+    dplyr::rename(protein_id=non.redundant_refseq, protein_name=name) %>%
+    mutate(sample=label) %>% 
+    mutate(strain=sample_abb) 
+  
+  all.top.trans.100 <- rbind(all.top.trans.100,top.trans.100)
+  
+  # get mean coverage for all transcripts that was at least mapped once (and summary statistics for number of transcripts that was at last mapped once)
+  cur_data <- data.frame(sample=sample, 
+                         sample_abb=label,
+                         strain=sample_abb,
+                         Total.Transcripts = length(trans.ref$non.redundant_refseq),
+                         Number.Transcript.Mapped = length(trans.stats.anot[trans.stats.anot$`Mean coverage` != 0,1]),
+                         average.mapped.cov = mean(trans.stats.anot$`Mean coverage`[trans.stats.anot$`Mean coverage` != 0])) # average coverage for all transcripts that were mapped by at least one read
+  trans.summary <- rbind(trans.summary, cur_data)
+  trans.stats.anot[trans.stats.anot$`Mean coverage` == 0,1]
+}
+
+
+unique(all.top.trans$locus_tag)
+trans.summary
+# trans.stats.anot[trans.stats.anot$headers=="lcl|NC_005823.1_cds_117"]
+# write.csv(all.top.trans,"/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/directRNA/transcriptome/directRNA_top10Mapped_transcript_statistics.csv")
+```
+```{r}
+
+# all.top.trans.edited
+# average mean coverage for the two no polyA added copenhagni samples.
+
+all.top.trans.wider <-all.top.trans %>% dplyr::select(sample, locus_tag, `Mean coverage`) %>% pivot_wider(names_from = sample, values_from = `Mean coverage`)
+# all.top.trans.wider[is.na(all.top.trans.wider$protein_id),]$locus_tag <- "Hypothetical genes"
+
+all.top.trans$label <- paste(all.top.trans$locus_tag, all.top.trans$protein_name, paste(all.top.trans$start, all.top.trans$end, sep="-"), sep="\n")
+all.top.trans$sample <- factor(all.top.trans$sample, levels = c("LIC-dRNA-R1-Q29","LIC-dRNA-R2-Q29", "LIC-dRNA-R2-Q36", "LIC-dRNA-R1-Q36" ))
+
+# write.csv(all.top.trans.edited, file.path(cdna.path, "transcriptome/cDNA_top10Mapped_transcript_statistics.csv"))
+p3 <- ggplot(all.top.trans, aes(x=label, y=`Mean coverage`))+
+  geom_bar(stat = "identity") +
+  facet_wrap(~sample, scales = "free_x", ncol = 2)+
+  theme_bw()+
+    theme(axis.text.x=element_text(angle=90,  size = 12,hjust=0.95,vjust=0.2), axis.text = element_text(size=12), legend.title = element_text(size=12), legend.text = element_text(size=12), axis.title = element_text(size=12), strip.text = element_text(size = 12))
+p3
+# ggsave(file.path(man.path, "figures/II.4.top.cov.transcript.dDNA.pdf"), p3,height = 13,width = 15)
+
+```
+
+```{r}
+
+  library(VennDiagram)
+
+all.top.trans.100 
+
+
+x <- list(`LIC-dRNA-R1-Q29` = all.top.trans.100 %>% subset(sample == "LIC-dRNA-R1-Q29") %>% select(protein_id) %>% unlist(), 
+     `LIC-dRNA-R2-Q29` = all.top.trans.100 %>% subset(sample == "LIC-dRNA-R2-Q29") %>% select(protein_id) %>% unlist(),
+     `LIC-dRNA-R1-Q36`= all.top.trans.100 %>% subset(sample == "LIC-dRNA-R1-Q36") %>% select(protein_id) %>% unlist(),
+     `LIC-dRNA-R2-Q36` = all.top.trans.100 %>% subset(sample == "LIC-dRNA-R2-Q36") %>% select(protein_id) %>% unlist()
+ )
+
+
+ venn.diagram(x[3:4], fill = c("lightblue", "purple"), 
+             alpha = c(0.5, 0.5), lwd =0, file.path(man.path, "figures/II.8.dRNA.top100.mapped.transcripts.venn34.tiff"), cat.cex = c(1,1), cat.default.pos=c("outer"), margin =0.2, ext.text=FALSE)
+
+
+
+
+data.frame(Name = intersect(x$`LIC-nonpolyA`, x$`LIC-polyA`))
+
+
+
+
+```
+
+## Top 100 transcript overlap between cDNA LIC and dRNA LIC
+```{r}
+
+# get this from cDNA_map_stats.rmd script
+LIC.nonpolyA <- read.csv(file.path(cdna.path, "transcriptome", "LIC.nonpolyA.top.10.mapped.transcripts.locus.txt"), sep="\n", header=FALSE) %>% unlist()
+
+LIC.polyA <- read.csv(file.path(cdna.path, "transcriptome", "LIC.polyA.top.10.mapped.transcripts.locus.txt"), sep="\n", header=FALSE) %>% unlist()
+
+y <- list(`LIC-cDNA-nonpolyA`=LIC.nonpolyA, `LIC-cDNA-polyA`= LIC.polyA, `LIC-dRNA-Q29` = all.top.trans.100 %>% subset(sample == "LIC-dRNA-R2-Q29" | sample == "LIC-dRNA-R1-Q29") %>% select(locus_tag) %>% distinct() %>% unlist())
+
+y[c(1,3)]
+y
+ venn.diagram(y, fill = c("lightblue", "purple", "yellow"), 
+             alpha = c(0.5, 0.5, 0.5), lwd =0, file.path(man.path, "figures/II.9.cDNA.dRNA.top100.mapped.transcripts.venn.tiff"),  cat.default.pos=c("outer"), margin =0.2, ext.text=FALSE)
+ 
+ 
+overlap.drna.cdna.nonPolyA <- trans.stats.anot %>% subset(locus_tag %in% intersect(y$`LIC-cDNA-nonpolyA`,y$`LIC-dRNA-Q29`))
+
+overlap.drna.cdna.PolyA<- trans.stats.anot %>% subset(locus_tag %in% intersect(y$`LIC-cDNA-polyA`,y$`LIC-dRNA-Q29`))
+
+# write.csv(overlap.drna.cdna.nonPolyA, file.path(man.path, "figures/overlap.drna.cdna.nonPolyA.csv"))
+# write.csv(overlap.drna.cdna.PolyA, file.path(man.path, "figures/overlap.drna.cdna.PolyA.csv"))
+```
+
+
+
+### transcripts mapped at least once with direct RNA sequencing
+```{r}
+# 
+# trans.summary <- trans.summary %>% group_by(sample_abb) %>% summarise( sample = sample,sample_abb=sample_abb, strain=strain,  Total.Transcripts=Total.Transcripts, Number.Transcript.Mapped= mean(Number.Transcript.Mapped), average.mapped.cov
+# =mean(average.mapped.cov)) 
+# trans.summary$replicates <- rep(c("R1","R2"),2)
+
+library(ggplot2)
+library(tidyr)
+
+trans.summary.longer <- trans.summary %>% pivot_longer(names_to="transcripts", values_to="Number.Mapped", c(Total.Transcripts, Number.Transcript.Mapped))
+trans.summary.longer$transcripts <- factor(trans.summary.longer$transcripts, levels = c("Total.Transcripts", "Number.Transcript.Mapped"))
+
+
+p1 <- ggplot(trans.summary.longer, aes(x=sample_abb,y = Number.Mapped, fill=transcripts))+
+  geom_bar(stat = "identity", position = "dodge")+
+  geom_text(aes(label=Number.Mapped), position = position_dodge(width = 0.9), vjust=-0.2)+
+  theme_bw()+
+    theme(axis.text.x=element_text(angle=90), axis.text = element_text(size=12), legend.title = element_text(size=12), legend.text = element_text(size=12), axis.title = element_text(size=12), strip.text = element_text(size = 12))+
+  labs(x="Samples", y="Number.Uniquely.Mapped.Transcripts")+
+  scale_fill_manual(values=c("blue","orange"))
+p1
+
+# ggsave(file.path(man.path, "figures", "II.2.dRNA.unique.transcripts.mapped.pdf"), p1,width=9, height=7)
+
+```
+
+# mapping to reference genome statistics
+```{r}
+
+library(scales)
+drna.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/directRNA"
+gen.path <- file.path(drna.path, "genome")
+cov_files <- list.files(file.path(gen.path, "qualimap"), pattern = "*coverage_across_reference.txt", recursive = TRUE, full.names = TRUE)
+cov_files <- cov_files[grepl("_rna_filtered", cov_files)]
+
+all_samples <- list()
+
+
+plot_cov <- function(file){
+  
+  ref.cov <- read.csv(file, sep="\t")
+  s <- unlist(strsplit(file, split="/", fixed=TRUE))
+  sample <- s[length(s)-2]
+  s2 <- unlist(strsplit(sample, split = "_", fixed= TRUE))
+  temp <- s2[1]
+  
+  sample_abb <- paste("LIC","dRNA",temp, sep="-")
+  
+  p1 <- ggplot(ref.cov, aes(x=X.Position..bp., y=Coverage))+
+    geom_line()+
+    scale_x_continuous(labels = comma,breaks=seq(0, 5000000, by = 100000))+
+    scale_y_continuous(labels = comma,breaks=seq(0, 6000, by = 1000),limits = c(0, 7000))+
+    geom_vline(xintercept = 4277185, linetype="dotted", 
+                color = "blue")+
+    theme_bw()+
+    # scale_y_continuous(limits = c(-1,20))+
+    labs(x="Genome Positions (bp)", y= "Coverage", title = sample_abb)+
+    annotate("text", x=0, y=5000, label= "Chr I",angle = 90, color="red") +
+    annotate("text", x=4500000, y=5000, label= "Chr II", angle = 90, color="red") +
+    theme(axis.text.x = element_text(angle=90))
+  
+  bp <- ggplot_build(p1)$data[[1]] %>% arrange(desc(y)) # get the postion with highest mapping frequencies in descending order
+  p1 
+  
+    
+}
+
+
+all_drna_plots <- lapply(cov_files, plot_cov)
+
+require(gridExtra)
+combined_p <- do.call(grid.arrange,  c(all_drna_plots, ncol=2))
+
+# ggsave(file.path(man.path, "figures/II.3.drna.full.genome.cov.to.ref.notlog.pdf"), combined_p, width = 13)
 ```
 

@@ -13,22 +13,22 @@ knitr::opts_chunk$set(echo = TRUE)
 cdna.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/cDNA"
 trans.path <- file.path(cdna.path, "transcriptome")
 ref.path <- file.path(cdna.path, "../reference")
-man.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/manuscript"
+man.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/manuscript/characterize"
 ```
 
 ### Reference Transcriptome Feature Table
 - reformat the headers of "GCF_000007685.1_ASM768v1_cds_from_genomic.fna" file
 - take locus_id, protein_id and Protein_name from each transcript in the file
 ```{r}
-# 
-# cds.headers <- readLines(file.path(ref.path, "GCF_000007685.1_cds_headers.txt"))
+# ref_name <- "GCF_014858895.1"
+# cds.headers <- readLines(file.path(ref.path, paste0(ref_name,"_cds_headers.txt")))
 # 
 # 
 # process_rows <- function(x){
 #   substrs<- unlist(strsplit(x,"[" , fixed = TRUE))
 #   data.frame(headers = substrs[1],
-#              gene.name=ifelse(identical(substrs[grep("gene=", substrs)], character(0)), "", substrs[grep("gene=", substrs)]), 
-#              locus.tag = substrs[grepl("locus_tag=",substrs)], 
+#              gene.name=ifelse(identical(substrs[grep("gene=", substrs)], character(0)), "", substrs[grep("gene=", substrs)]),
+#              locus.tag = substrs[grepl("locus_tag=",substrs)],
 #              protein_id = ifelse(identical(substrs[grep("protein_id=", substrs)], character(0)), "", substrs[grep("protein_id=", substrs)]),
 #              protein_name =ifelse(identical(substrs[grep("protein=", substrs)], character(0)), "", substrs[grep("protein=", substrs)]))
 # }
@@ -45,8 +45,8 @@ man.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/
 # cds.headers.df.edited <- cds.headers.df %>% mutate(headers= trimws(substr(headers, 2, nchar(headers)))) %>% mutate(gene.name = sapply(gene.name, edit_str)) %>% mutate(locus.tag = sapply(locus.tag, edit_str)) %>% mutate(protein_id = sapply(protein_id, edit_str)) %>% mutate(protein_name = sapply(protein_name, edit_str))
 # 
 # row.names(cds.headers.df.edited) <- NULL
-
-# write.csv(cds.headers.df.edited, file.path(ref.path, "GCF_000007685.1_cds_headers_table.txt"), row.names = FALSE, quote = FALSE)
+# 
+# write.csv(cds.headers.df.edited, file.path(ref.path, paste0(ref_name,"_cds_headers_table.txt")), row.names = FALSE, quote = FALSE)
 ```
 
 # cDNA Mapping statistics
@@ -60,19 +60,44 @@ library(dplyr)
 
 # transcriptome feature reference
 # only CDS kept, other features such as tRNA doesn't have non.redundant_refseq, was removed 
-trans.ref <- read.csv(file.path(ref.path, "GCF_000007685.1_ASM768v1_feature_table.txt"), sep = '\t') %>% subset(X..feature != "gene") %>% select(c(chromosome, start, end, strand, non.redundant_refseq, locus_tag,name, symbol, feature_interval_length))
 
-cds.headers.file <- read.csv(file.path(ref.path, "GCF_000007685.1_cds_headers_table.txt"))
+
+
 
 qualimap <- file.path(trans.path, "qualimap")
 
 all.top.trans <- data.frame(sample = character(), protein_id=character(), protein_name=character(), start=integer(), end=integer(), strand=character(),strain=character(), isPolyA = character())
+  top.100.trans <- data.frame(sample = character(), protein_id=character(), protein_name=character(), start=integer(), end=integer(), strand=character(),strain=character(), isPolyA = character())
 trans.summary <- data.frame(sample=character(), sample_abb=character(), strain=character(),isPolyA = character(),Total.Transcripts=integer() , Number.Transcript.Mapped = integer(), average.mapped.cov=numeric())
+
 for(file in list.dirs(file.path(qualimap),recursive = FALSE)){
   
   sample=basename(file)
   str <- unlist(strsplit(sample, "_"))
-  strain <- str[1]
+  strain_w <- str[1]
+  switch(
+    strain_w,
+    Copenhageni ={
+      strain <- "LIC"
+      cds.headers.file <- read.csv(file.path(ref.path, "GCF_000007685.1_cds_headers_table.txt"))
+      trans.ref <- read.csv(file.path(ref.path, "GCF_000007685.1_ASM768v1_feature_table.txt"), sep = '\t') %>% subset(X..feature != "gene") %>% select(c(chromosome, start, end, strand, non.redundant_refseq, locus_tag,name, symbol, feature_interval_length))
+      },
+    Icterohaemorrhagiae = {
+      strain <- "LII"
+      cds.headers.file <- read.csv(file.path(ref.path, "GCF_014858895.1_cds_headers_table.txt"))
+      trans.ref <- read.csv(file.path(ref.path, "GCF_014858895.1_ASM1485889v1_feature_table.txt"), sep = '\t') %>% subset(X..feature != "gene") %>% select(c(chromosome, start, end, strand, non.redundant_refseq, locus_tag,name, symbol, feature_interval_length))
+      },
+    Mankarso={
+      strain <- "LIM"
+      cds.headers.file <- read.csv(file.path(ref.path, "GCF_014858895.1_cds_headers_table.txt"))
+      trans.ref <- read.csv(file.path(ref.path, "GCF_014858895.1_ASM1485889v1_feature_table.txt"), sep = '\t') %>% subset(X..feature != "gene") %>% select(c(chromosome, start, end, strand, non.redundant_refseq, locus_tag,name, symbol, feature_interval_length))
+      },
+    Patoc={
+     strain <-  "LBP"
+      cds.headers.file <- read.csv(file.path(ref.path, "GCF_000017685.1_cds_headers_table.txt"))
+      trans.ref <- read.csv(file.path(ref.path, "GCF_000017685.1_ASM1768v1_feature_table.txt"), sep = '\t') %>% subset(X..feature != "gene") %>% select(c(chromosome, start, end, strand, non.redundant_refseq, locus_tag,name, symbol, feature_interval_length))
+    },
+  )
   polya_status <- str[grepl("PolyA", str)]
   sample_abb <- paste(str[1], polya_status,sep=".")
   trans.stat.file <- read.csv(file.path(qualimap, sample, "transcript_cov_stats.txt"), skip= 1 , sep="\t", header=FALSE) %>% select(-V1)
@@ -83,6 +108,7 @@ for(file in list.dirs(file.path(qualimap),recursive = FALSE)){
     paste(s[4], s[5], sep="_")
   })) %>% dplyr::rename(headers=Name) # length reported by qualimap are length of the CDS instead of mapping length
 
+  
   trans.stats.anot <- left_join(trans.stats, cds.headers.file) %>% dplyr::rename(locus_tag = locus.tag)
   trans.stats.anot <- left_join(trans.stats.anot, trans.ref, by=c("locus_tag"))[c("headers","non.redundant_refseq.x", "non.redundant_refseq.y","Mean coverage", "Mapped bases","Standard deviation", "gene.name","locus_tag", "protein_id","protein_name", "name", "symbol", "chromosome", "start", "end", "strand", "feature_interval_length")]
   
@@ -94,8 +120,19 @@ for(file in list.dirs(file.path(qualimap),recursive = FALSE)){
     mutate(sample=sample_abb) %>% 
     mutate(strain=strain) %>%
     mutate(is.PolyA = polya_status)
+  
+    # get transcripts with top 10 coverage for each sample 
+  top.100.trans.temp <- trans.stats.anot %>% 
+    arrange(desc(`Mean coverage`)) %>% 
+    head(100) %>% 
+    select(protein_id, protein_name, locus_tag,start, end, strand, `Mean coverage`) %>%
+    mutate(sample=sample_abb) %>% 
+    mutate(strain=strain) %>%
+    mutate(is.PolyA = polya_status)
+  
   top.trans
   all.top.trans <- rbind(all.top.trans,top.trans)
+  top.100.trans <- rbind(top.100.trans, top.100.trans.temp)
   
   # get mean coverage for all transcripts that was at least mapped once (and summary statistics for number of transcripts that was at last mapped once)
   cur_data <- data.frame(sample=sample, 
@@ -129,28 +166,41 @@ library(tidyr)
 
 trans.summary.longer <- trans.summary %>% pivot_longer(names_to="transcripts", values_to="Number.Mapped", c(Total.Transcripts, Number.Transcript.Mapped))
 trans.summary.longer$transcripts <- factor(trans.summary.longer$transcripts, levels = c("Total.Transcripts", "Number.Transcript.Mapped"))
-trans.summary.longer$isPolyA <- factor(trans.summary.longer$isPolyA, levels = c("PolyATail", "NoPolyATail"))
-p1 <- ggplot(trans.summary.longer, aes(x=strain,y = Number.Mapped, fill=transcripts))+
+trans.summary.longer$isPolyA <- factor(trans.summary.longer$isPolyA, levels = c("NoPolyATail","PolyATail"))
+trans.summary.longer$strain <- factor(trans.summary.longer$strain, levels=c("LIC","LII","LIM","LBP"))
+
+plot_df <- trans.summary.longer %>% mutate(polya = sapply(isPolyA, function(x){
+  switch(
+    x,
+    NoPolyATail = "nonpolyA",
+    PolyATail = "polyA"
+  )
+})) %>% mutate(Samples = paste(strain, polya, sep="-"))
+plot_df$Samples <- factor(plot_df$Samples,levels=c("LIC-nonpolyA","LIC-polyA","LII-nonpolyA","LII-polyA","LIM-nonpolyA","LIM-polyA", "LBP-nonpolyA", "LBP-polyA"))
+
+
+p1 <- ggplot(plot_df, aes(x=polya,y = Number.Mapped, fill=transcripts))+
   geom_bar(stat = "identity", position = "dodge")+
+  geom_text(aes(label=Number.Mapped),position = position_dodge(width = .9),vjust=-0.2)+
   theme_bw()+
-    theme(axis.text.x=element_text(angle=45, vjust=1, hjust = 1, size = 12), axis.text = element_text(size=12), legend.title = element_text(size=12), legend.text = element_text(size=12), axis.title = element_text(size=12), strip.text = element_text(size = 12))+
-  
-  facet_wrap(~isPolyA, scales = "free_x")+
+    theme(axis.text.x=element_text(angle=90, size = 12,hjust=0.95,vjust=0.2), axis.text = element_text(size=12), legend.title = element_text(size=12), legend.text = element_text(size=12), axis.title = element_text(size=12), strip.text = element_text(size = 12))+
+  facet_wrap(~strain, scales = "free")+
+  scale_fill_manual(values=c("blue", "orange","#F2F2C5","#80A66C"))+
   labs(x="Samples", y="Number.Uniquely.Mapped.Transcripts")
 p1
-# ggsave(file.path(man.path, "figures/I.1.Number.Transcript.mapped.cDNA.pdf"), p1, width = 9, height = 6)
+# ggsave(file.path(man.path, "figures/I.2.Number.Transcript.mapped.cDNA.pdf"), p1, width = 11, height = 10)
 
 
 
-p2 <- ggplot(trans.summary.longer %>% subset(transcripts == "Number.Transcript.Mapped"), aes(x=strain, y= average.mapped.cov, fill=strain))+
+p2 <- ggplot(plot_df%>% subset(transcripts == "Number.Transcript.Mapped"), aes(x=Samples, y= average.mapped.cov, fill=isPolyA))+
   geom_bar(stat="identity")+
+  geom_text(aes(label=round(average.mapped.cov), vjust=-0.3))+
   theme_bw()+
-  theme(axis.text.x=element_text(angle=45, vjust=1, hjust = 1, size = 12), axis.text = element_text(size=12), legend.title = element_text(size=12), legend.text = element_text(size=12), axis.title = element_text(size=12), strip.text = element_text(size = 12))+
-  facet_wrap(~isPolyA, scales = "free_x")+
+  theme(axis.text.x=element_text(angle=90, size = 12,hjust=0.95,vjust=0.2), axis.text = element_text(size=12), legend.title = element_text(size=12), legend.text = element_text(size=12), axis.title = element_text(size=12), strip.text = element_text(size = 12))+
   scale_fill_manual(values=c("blue", "orange","#F2F2C5","#80A66C"))+
   labs(x="Samples", y = "Average.Mapped.Transcripts.Coverage")
 p2
-# ggsave(file.path(man.path, "figures/I.2.Avg.Transcript.mapped.coverage.cDNA.pdf"), p2, width = 8, height = 7)
+# ggsave(file.path(man.path, "figures/I.1.Avg.Transcript.mapped.coverage.cDNA.pdf"), p2, width = 9, height = 5)
 
 ```
 
@@ -163,9 +213,17 @@ primary_align <- read.csv(file.path(trans.path,"cDNA_read_map_cov_frac_to_transc
 
 
 avg_primary_align <- primary_align %>% mutate(Strain = sapply(Sample, function(x){
-  unlist(strsplit(x, "_", fixed=TRUE))[1]
+  name <- unlist(strsplit(x, "_", fixed=TRUE))[1]
+  switch(
+    name,
+    Copenhageni="LIC",
+    Icterohaemorrhagiae="LII",
+    Mankarso = "LIM",
+    Patoc="LBP"
+  )
 })) %>% mutate(`is polyA` = sapply(Sample, function(x){
   s <- unlist(strsplit(x, "[_-]+"))
+  
   if(s[length(s)] == "Qiagen"){
     "NoPolyATail"
   }else{
@@ -173,25 +231,49 @@ avg_primary_align <- primary_align %>% mutate(Strain = sapply(Sample, function(x
   }
   
 })) #%>% group_by(Strain, `is polyA`, Transcript.Name) %>% summarise(Transcript.Len = mean(Transcript.Len), Coverage.Fraction = mean(coverage.fraction))
-# write.csv(avg_primary_align, file.path(trans.path,"cDNA_primaryAligned_map_cov_frac_to_transcript.csv"),row.names = FALSE, quote = FALSE)
+ # write.csv(avg_primary_align, file.path(trans.path,"cDNA_primaryAligned_map_cov_frac_to_transcript.csv"),row.names = FALSE, quote = FALSE)
 
 avg_primary_align
 library(ggplot2)
 library(scales)
+library(ggpubr)
+library(rstatix)
 
-avg_primary_align$bins <- cut(avg_primary_align$Transcript.Len,breaks = c(0, 92,1500,3000,4500,6000,7500,9384), dig.lab=10)
+avg_primary_align$bins <- cut(avg_primary_align$Transcript.Len,breaks = c(0, 100,1500,3000,4500,6000,7500,9384), dig.lab=10)
 length(avg_primary_align$ReadID)
-avg_primary_summary <- avg_primary_align %>% group_by(bins, `is polyA`, Strain) %>% summarise(num_transcripts=n())
-avg_primary_summary
-p1 <- ggplot(avg_primary_align, aes(x=bins, y= coverage.fraction, fill=`is polyA`))+
-  geom_violin()+
-  geom_text(data = avg_primary_summary, aes(x=bins, y=1, label=num_transcripts), position = position_dodge(width = .9), vjust =-0.1,size=3)+
+
+
+avg_primary_align$Strain <- factor(avg_primary_align$Strain, levels = c("LIC","LII","LIM","LBP"))
+avg_primary_align <- avg_primary_align %>% rename("is.polyA" = `is polyA`)
+avg_primary_summary <- avg_primary_align %>% group_by(bins, `is.polyA`, Strain) %>% summarise(num_transcripts=n())
+
+# calculate statistic significance between each transcript coverage fraction interval's polyA vs. nonPolyA sample's reads
+
+stat.test <- avg_primary_align %>% subset(bins != "(0,100]" ) %>% subset(!(bins=="(7500,9384]" & Strain == "LBP"))%>% subset(!(bins=="(6000,7500]" & Strain %in% c("LII", "LIM", "LBP"))) %>%
+  group_by(bins,Strain) %>%
+  t_test(coverage.fraction~is.polyA) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_significance()%>%
+  add_xy_position(x = "bins", dodge = 0.8)
+colnames(stat.test)
+
+stat.test <- rbind( data.frame(Strain = unique(avg_primary_align$Strain), bins="(0,100]", `.y.`="coverage.fraction", group1="NoPolyATail", group2="PolyATail", n1 = 0, n2 = 0, statistic = 0, df=0, p=0, p.adj = 0,p.adj.signif="ns", y.position = 1.111, groups = c("NoPolyATail", "PolyATail"), x=1, xmin=0.8, xmax=1.2), stat.test)
+
+
+p1 <- ggplot(avg_primary_align, aes(x=bins, y= coverage.fraction))+
+  geom_boxplot(position = position_dodge(preserve = "single"),outlier.size = 1, aes(fill=is.polyA))+
+  geom_text(data = avg_primary_summary, aes(x=bins, y=1, label=num_transcripts), position = position_dodge(width = .8), vjust =-0.4,size=3)+
   facet_wrap(~Strain) +
   theme_bw()+
    theme(axis.text.x=element_text(angle=45, vjust=1, hjust = 1, size = 12), axis.text = element_text(size=12), legend.title = element_text(size=12), legend.text = element_text(size=12), axis.title = element_text(size=12), strip.text = element_text(size = 12))+
-  labs(x="Transcript Length", y = "Transcript Coverage Fraction Per Read")
+  scale_fill_manual(values=c("lightblue", "orange","#F2F2C5","#80A66C"))+
+  labs(x="Transcript Length", y = "Transcript Coverage Fraction Per Read")+
+  scale_y_continuous(labels = comma,breaks=seq(0, 1, by = 0.25),limits = c(0, 1.2))+
+  stat_pvalue_manual(stat.test, label = "p.adj.signif")
+
+
 p1
-# ggsave(file.path(man.path, "figures/I.6.cDNA.read.transcript.coverage.fraction.pdf"), p1, width = 15, height = 8)
+# ggsave(file.path(man.path, "figures/I.6.cDNA.read.transcript.coverage.fraction.pdf"), p1, width = 17, height = 8)
 
 
 ```
@@ -204,49 +286,28 @@ primary_align <- read.csv(file.path(trans.path,"cDNA_primaryAligned_map_cov_frac
 
 trans.cov.frac <- primary_align %>% group_by(Sample, Transcript.Name) %>% summarise(Strain=Strain,is.polyA = is.polyA ,min.Map.Start = min(Map.Start), max.Map.End=max(Map.End), Transcript.Len = Transcript.Len) %>% distinct() %>% mutate(transcript.cov.fraction = (max.Map.End - min.Map.Start)/ Transcript.Len)
 
-trans.cov.frac$bins <- cut(trans.cov.frac$Transcript.Len,breaks = c(0, 92,1500,3000,4500,6000,7500,9384), dig.lab=10)
+trans.cov.frac$bins <- cut(trans.cov.frac$Transcript.Len,breaks = c(0, 100,1500,3000,4500,6000,7500,9384), dig.lab=10)
 
 trans.cov.frac
 trans.cov.frac_summary <- trans.cov.frac %>% group_by(bins, is.polyA, Strain) %>% summarise(num_transcripts=n())
 trans.cov.frac_summary
 p2 <- ggplot(trans.cov.frac, aes(x=bins, y= transcript.cov.fraction, fill=is.polyA))+
-  geom_violin()+
-  geom_text(data = trans.cov.frac_summary, aes(x=bins, y=1, label=num_transcripts), position = position_dodge(width = .9), vjust =-0.1,size=3)+
+  geom_boxplot(outlier.size = 1, position = position_dodge(preserve = "single"))+
+  geom_text(data = trans.cov.frac_summary, aes(x=bins, y=1, label=num_transcripts), position = position_dodge(width = .9), vjust =-0.3,size=3)+
   facet_wrap(~Strain) +
   theme_bw()+
    theme(axis.text.x=element_text(angle=45, vjust=1, hjust = 1, size = 12), axis.text = element_text(size=12), legend.title = element_text(size=12), legend.text = element_text(size=12), axis.title = element_text(size=12), strip.text = element_text(size = 12))+
+  scale_fill_manual(values=c("blue", "orange","#F2F2C5","#80A66C"))+
   labs(x="Transcript Length", y = "Transcript Coverage Fraction by all Mapped Reads")
 p2
-# ggsave(file.path(man.path, "figures/I.7.cDNA.allMapped.transcript.coverage.fraction.pdf"), p2, width = 15, height = 8)
+# ggsave(file.path(man.path, "figures/I.7.cDNA.allMapped.transcript.coverage.fraction.pdf"), p2, width = 17, height = 8)
 ```
 
-## Read statistics Mapping to Genome
-- p3: For all Primary genome alignment, we show the raw read length for all reads for each sample
-```{r}
-# 
-# primary.genome.map.stats <- read.csv(file.path(cdna.path, "genome/cDNA_genome_map_statistics.csv"))%>% subset(!(is_secondary == "True" | is_supplementary == "True"))
-#  
-# avg_primary_align_genome <- primary.genome.map.stats %>% mutate(Strain = sapply(Sample, function(x){
-#   unlist(strsplit(x, "_", fixed=TRUE))[1]
-# })) %>% mutate(`is polyA` = sapply(Sample, function(x){
-#   s <- unlist(strsplit(x, "[_-]+"))
-#   if(s[length(s)] == "Qiagen"){
-#     "NoPolyATail"
-#   }else{
-#     s[length(s)]
-#   }
-#   
-# }))
 
-# write.csv(avg_primary_align_genome,file.path(cdna.path, "genome/cDNA_primaryMapped_genome_map_statistics.csv"),row.names = FALSE, quote = FALSE)
-
- avg_primary_align_genome <- read.csv(file.path(cdna.path, "genome/cDNA_primaryMapped_genome_map_statistics.csv"))
-p3 <-ggplot(avg_primary_align_genome, aes(x= Strain, y=Read.Length, fill=is.polyA))+
-  geom_violin()+
-  theme_bw()
-# ggsave(file.path(man.path, "figures/I.8.cDNA.genome.allMappedReadsLengthDistribution.pdf"), p3 )
-```
-
+# Top mapped transcripts for each strain
+- we would like to know:
+  1) what are the transcripts mostly mapped (highest coverage)
+  2) is the position of these top mapped transcripts corresponds with the position show high coverage in noPoly A sample when no poly A were added during sequencing?
 ## Top 10 transcripts coverage 
 - plot top 10 transcript with highest coverage for each sample
 
@@ -261,7 +322,7 @@ all.top.trans.wider <-all.top.trans.edited %>% select(sample, locus_tag, `Mean c
 # all.top.trans.wider[is.na(all.top.trans.wider$protein_id),]$locus_tag <- "Hypothetical genes"
 
 all.top.trans.edited$label <- factor(all.top.trans.edited$label, levels = c(unique(all.top.trans.edited[order(all.top.trans.edited$start),]$label)))
-
+all.top.trans.edited$strain <- factor(all.top.trans.edited$strain, levels=c("LIC","LII","LIM","LBP"))
 # write.csv(all.top.trans.edited, file.path(cdna.path, "transcriptome/cDNA_top10Mapped_transcript_statistics.csv"))
 p3 <- ggplot(all.top.trans.edited, aes(x=label, y=`Mean coverage`))+
   geom_bar(stat = "identity") +
@@ -271,6 +332,41 @@ p3 <- ggplot(all.top.trans.edited, aes(x=label, y=`Mean coverage`))+
 p3
 # ggsave(file.path(man.path, "figures/I.4.top.cov.transcript.cDNA.pdf"), p3,height = 25,width = 15)
 
+```
+
+
+```{r}
+unique(top.100.trans$sample) 
+ library(VennDiagram)
+
+top.100.trans.edited <- top.100.trans %>% mutate(polya=sapply(top.100.trans$is.PolyA, function(x){
+  switch(
+    x, 
+  NoPolyATail="nonpolyA",
+  PolyATail = "polyA")
+
+})) %>% mutate(label=paste(strain, polya, sep="-"))
+top.100.trans.edited %>%  subset(label=="LIC-polyA") %>% unique()
+top.100.trans.edited %>% subset(strain== "LIC" & is.PolyA == "NoPolyATail") %>% group_by(locus_tag) %>% summarise(`Mean coverage` = mean(`Mean coverage`), strain = strain, polya = "nonpolyA", label = label) %>% arrange(desc(`Mean coverage`)) %>% select(locus_tag)%>% distinct() %>% head(100)  %>% unlist()
+
+x <- list(`LIC-nonpolyA` = top.100.trans.edited %>% subset(strain== "LIC" & is.PolyA == "NoPolyATail") %>% group_by(locus_tag) %>% summarise(`Mean coverage` = mean(`Mean coverage`), strain = strain, polya = "nonpolyA", label = label) %>% arrange(desc(`Mean coverage`)) %>% select(locus_tag)%>% distinct() %>% head(100)  %>% unlist(),
+     `LIC-polyA` = top.100.trans.edited %>% subset(label=="LIC-polyA") %>% select(locus_tag) %>% unlist(),
+     `LII-nonpolyA`= top.100.trans.edited %>% subset(label=="LII-nonpolyA") %>% select(locus_tag) %>% unlist(),
+     `LII-polyA` = top.100.trans.edited %>% subset(label=="LII-polyA") %>% select(locus_tag) %>% unlist(),
+     `LIM-nonpolyA` = top.100.trans.edited %>% subset(label=="LIM-nonpolyA") %>% select(locus_tag) %>% unlist(),
+     `LIM-polyA` = top.100.trans.edited %>% subset(label=="LIM-polyA") %>% select(locus_tag) %>% unlist(),
+     `LBP-nonpolyA` = top.100.trans.edited %>% subset(label=="LBP-nonpolyA") %>% select(locus_tag) %>% unlist(),
+     `LBP-polyA` =top.100.trans.edited %>% subset(label=="LBP-polyA") %>% select(locus_tag) %>% unlist())
+     
+
+ venn.diagram(x[5:6], fill = c("lightblue", "purple"), 
+             alpha = c(0.5, 0.5), lwd =0, file.path(man.path, "figures/I.8.cDNA.top100.mapped.transcripts.venn56.tiff"), cat.cex = c(1,1), cat.position=c(12,12), margin =0.2)
+ 
+ 
+ LIC.noPOlyA.top100 <- top.100.trans.edited %>% subset(strain== "LIC" & is.PolyA == "NoPolyATail") %>% group_by(locus_tag) %>% summarise(`Mean coverage` = mean(`Mean coverage`), strain = strain, polya = "nonpolyA", label = label) %>% arrange(desc(`Mean coverage`)) %>% select(locus_tag)%>% distinct() %>% head(100)  %>% unlist()
+ LIC.POlyA.top100 <- top.100.trans.edited %>% subset(label=="LIC-polyA") %>% select(locus_tag) %>% unlist()
+ # write.csv( data.frame(LIC.noPOlyA.top100), file.path(cdna.path, "transcriptome", "LIC.nonpolyA.top.10.mapped.transcripts.locus.txt"), sep="\n", quote=FALSE, row.names = FALSE, col.names = FALSE)
+  # write.csv( data.frame(LIC.POlyA.top100), file.path(cdna.path, "transcriptome", "LIC.polyA.top.10.mapped.transcripts.locus.txt"), sep="\n", quote=FALSE, row.names = FALSE, col.names = FALSE)
 ```
 
 ### overlap in each strain's mapped transcript
@@ -309,34 +405,241 @@ UpSet(m2)
 ```
 
 
-## Top mapped transcripts for each strain
-- we would like to know:
-  1) what are the transcripts mostly mapped (highest coverage)
-  2) is the position of these top mapped transcripts corresponds with the position show high coverage in noPoly A sample when no poly A were added during sequencing?
+## Read statistics Mapping to Genome
+- p3: For all Primary genome alignment, we show the raw read length for all reads for each sample
+```{r}
+library(dplyr)
+library(ggplot2)
+primary.genome.map.stats <- read.csv(file.path(cdna.path, "genome/cDNA_rna_filtered_genome_map_statistics.csv"))%>% subset(!(is_secondary == "True" | is_supplementary == "True"))
+
+avg_primary_align_genome <- primary.genome.map.stats %>% mutate(Strain = sapply(Sample, function(x){
+  unlist(strsplit(x, "_", fixed=TRUE))[1]
+})) %>% mutate(`is polyA` = sapply(Sample, function(x){
+  s <- unlist(strsplit(x, "[_-]+"))
+  if(s[length(s)] == "Qiagen"){
+    "NoPolyATail"
+  }else{
+    s[length(s)]
+  }
+
+}))
+
+# write.csv(avg_primary_align_genome,file.path(cdna.path, "genome/cDNA_rna_filtered_primaryMapped_genome_map_statistics.csv.csv"),row.names = FALSE, quote = FALSE)
+
+ avg_primary_align_genome <- read.csv(file.path(cdna.path, "genome/cDNA_primaryMapped_genome_map_statistics.csv"))
+p3 <-ggplot(avg_primary_align_genome, aes(x= Strain, y=Read.Length, fill=is.polyA))+
+  geom_boxplot()+
+  theme_bw()
+p3
+# ggsave(file.path(man.path, "figures/I.8.cDNA.genome.allMappedReadsLengthDistribution.pdf"), p3 )
+```
+
   
 # mapping to reference genome statistics
+
+```{r}
+
+library(tidyr)
+library(reshape2)
+library(gridExtra)
+library(scales)
+library(readr)
+
+cdnapath <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/cDNA"
+
+samples <- sapply(list.files(file.path(cdnapath, "genome", "flagstat")), function(x){
+  s <- unlist(strsplit(x, split=".", fixed=TRUE))[1]
+  y <- unlist(strsplit(s, split="_", fixed=TRUE))
+  paste(y[seq(1,length(y)-2)], collapse="_")
+})
+
+total.reads<- data.frame(sample=c(), total.reads=c())
+
+# map to genome
+mapped.reads.genome <- data.frame(sample=c(), strain = c(), polya = c(),mapped.reads=c())
+# map to transcriptome (set minimap -p, min secondary-to-primary score ratio, [0.99])
+mapped.reads.trans <- data.frame(sample=c(), strain = c(), polya = c(), mapped.reads.trans=c())
+
+# samtools flagstats 
+mapped.second.genome <- data.frame(sample=c(), strain = c(), polya = c(), secondary.alignment=c())
+mapped.supp.genome <- data.frame(sample=c(), strain = c(), polya = c(), supplementary.alignment=c())
+mapped.second.trans <- data.frame(sample=c(), strain = c(), polya = c(), secondary.alignment.trans=c())
+mapped.supp.trans <- data.frame(sample=c(), strain = c(), polya = c(), supplementary.alignment.trans=c())
+
+# total mapped reads/total reads
+mapped.percentage <- data.frame(sample=c(), strain = c(), polya = c(), mapped.percentage=c())
+mapped.percentage.trans <- data.frame(sample=c(), strain = c(), polya = c(), mapped.percentage.trans=c())
+
+index = 1
+for (index in 1:length(samples)){
+  sample <- samples[index]
+  temp_genome_data <- readLines(file.path(cdnapath, "genome","sam_stats", paste0(sample,"_rna_filtered",".sam.stats")))
+  temp_trans_data <- readLines(file.path(cdnapath, "transcriptome","sam_stats", paste0(sample,".sam.stats")))
+  
+  temp_sn_genome <- grep("^SN",temp_genome_data, value=TRUE)
+  temp_sn_trans <- grep("^SN",temp_trans_data, value=TRUE)
+  
+  temp_sn_genome <- separate(data.frame(temp_sn_genome),col=1, into=c("ID", "Name","Value"), sep="\t")[,-1]
+  temp_sn_trans <- separate(data.frame(temp_sn_trans),col=1, into=c("ID", "Name","Value"), sep="\t")[,-1]
+  
+  s <- unlist(strsplit(sample, split="_", fixed=TRUE))
+  
+  strain <- switch(s[1],
+        Copenhageni = "LIC",
+        Icterohaemorrhagiae = "LII",
+        Mankarso="LIM",
+        Patoc="LBP"
+        )
+  
+  polya <- ifelse(s[length(s)] == "Qiagen", "NoPolyATail", s[length(s)])
+  
+  # following number can alse get from samtools view -c $file.bam/sam -F (samtools bit code)
+  # check bit code at: http://broadinstitute.github.io/picard/explain-flags.html
+  # -F 2304, all primary reads,excluding reads non-primary aligned and supplementary alignment (but not necessarily mapped)
+  total.reads <- rbind(total.reads,data.frame(sample=sample, strain= strain,polya = polya,total.reads=c(temp_sn_genome[1,]$Value)))
+  # -F 2308, all primary reads,excluding reads that are not primarily aligned and supplementary alignment (mapped)
+  mapped.reads.genome <- rbind(mapped.reads.genome,data.frame(sample=sample, strain= strain,polya = polya,mapped.reads.genome=c(temp_sn_genome[7,]$Value)))
+  mapped.reads.trans <- rbind(mapped.reads.trans,data.frame(sample=sample, strain= strain,polya = polya, mapped.reads.trans=c(temp_sn_trans[7,]$Value)))
+  
+  # samtools flagstats results for secondard and supplementary reads stats
+  flagstats.genome <- readLines(file.path(cdnapath,"genome" ,"flagstat", paste0(sample,"_rna_filtered",".flagstat")))
+  mapped.second.genome <- rbind(mapped.second.genome,data.frame(sample=sample, strain= strain,polya= polya,secondary.alignment=unlist(strsplit(flagstats.genome[2], split=" ", fixed=TRUE))[1]))
+  mapped.supp.genome <- rbind(mapped.supp.genome,data.frame(sample=sample, strain= strain,polya = polya,supplementary.alignment=unlist(strsplit(flagstats.genome[3], split=" ", fixed=TRUE))[1]))
+  
+    flagstats.trans <- readLines(file.path(cdnapath, "transcriptome","flagstat", paste0(sample,".flagstat.sam")))
+  mapped.second.trans <- rbind(mapped.second.trans,data.frame(sample=sample, strain= strain,polya = polya, secondary.alignment.trans=unlist(strsplit(flagstats.trans[2], split=" ", fixed=TRUE))[1]))
+  mapped.supp.trans <- rbind(mapped.supp.trans,data.frame(sample=sample, strain= strain,polya = polya,supplementary.alignment.trans=unlist(strsplit(flagstats.trans[3], split=" ", fixed=TRUE))[1]))
+  
+   mapped.percentage <- rbind(mapped.percentage,data.frame(sample=sample, strain= strain,polya = polya,mapped.percentage=parse_number(unlist(strsplit(flagstats.genome[5], split=" ", fixed=TRUE))[5])))
+     mapped.percentage.trans <- rbind(mapped.percentage.trans,data.frame(sample=sample, strain= strain,polya = polya,mapped.percentage.trans=parse_number(unlist(strsplit(flagstats.trans[5], split=" ", fixed=TRUE))[5])))
+}
+
+
+
+```
+## plot
+```{r}
+library(ggplot2)
+library(dplyr)
+map.stats.combined <- merge(merge(total.reads,mapped.reads.genome), mapped.reads.trans)
+
+map.stats.combined_avg <- map.stats.combined %>% group_by(strain, polya) %>% summarise(total.reads= mean(as.numeric(total.reads)), mapped.reads.genome = mean(as.numeric(mapped.reads.genome)), mapped.reads.trans = mean(as.numeric(mapped.reads.trans)))
+
+summary(map.stats.combined_avg$mapped.reads.genome/map.stats.combined_avg$total.reads)
+summary(map.stats.combined_avg[map.stats.combined_avg$polya == "NoPolyATail",]$mapped.reads.trans/map.stats.combined_avg[map.stats.combined_avg$polya == "NoPolyATail",]$total.reads)
+
+summary(map.stats.combined_avg$mapped.reads.trans/map.stats.combined_avg$mapped.reads.genome)
+summary(map.stats.combined_avg[map.stats.combined_avg$polya == "NoPolyATail",]$mapped.reads.trans/map.stats.combined_avg[map.stats.combined_avg$polya == "NoPolyATail",]$total.reads)
+
+map.stats.combined_avg <- map.stats.combined_avg %>% mutate(polya = sapply(polya, function(x){switch(
+  x,
+  NoPolyATail = "nonpolyA",
+  PolyATail = "polyA"
+  )}))
+map.stats.combined_avg$Samples <- paste(map.stats.combined_avg$strain, map.stats.combined_avg$polya, sep="-")
+map.stats.combined_avg$mapped.reads.genome.percentage <- (map.stats.combined_avg$mapped.reads.genome/map.stats.combined_avg$total.reads)*100
+map.stats.combined_avg$mapped.reads.trans.percentage <- (map.stats.combined_avg$mapped.reads.trans/map.stats.combined_avg$total.reads)*100
+map.stats.combined_avg$total.percentage <- (map.stats.combined_avg$total.reads/map.stats.combined_avg$total.reads)*100
+
+map.stats.combined_avg_count <- map.stats.combined_avg %>% select("Samples","total.reads", "mapped.reads.genome", "mapped.reads.trans") %>% pivot_longer( cols = c("total.reads", "mapped.reads.genome", "mapped.reads.trans"), names_to = "primary.alignment.stats", values_to = "Count")
+
+map.stats.combined_avg_per <- map.stats.combined_avg %>% select("Samples", "total.percentage", "mapped.reads.genome.percentage", "mapped.reads.trans.percentage") %>% pivot_longer( cols = c("total.percentage", "mapped.reads.genome.percentage", "mapped.reads.trans.percentage"), names_to = "primary.alignment.percentage", values_to = "Percentage") %>% mutate(primary.alignment.stats = sapply(primary.alignment.percentage, function(x){
+  switch(x,
+        "total.percentage" = "total.reads" ,
+        "mapped.reads.genome.percentage" = "mapped.reads.genome",
+        "mapped.reads.trans.percentage" = "mapped.reads.trans")
+}))
+
+map.stats.combined_avg_count_percent <- left_join(map.stats.combined_avg_count, map.stats.combined_avg_per) %>% select(-c(primary.alignment.percentage))
+
+map.stats.longer <- pivot_longer(map.stats.combined_avg_count_percent,cols = c("Count", "Percentage"), names_to = "Stat", values_to="value")
+
+
+map.stats.longer$Samples <- factor(map.stats.longer$Samples, levels=c("LIC-nonpolyA","LIC-polyA","LII-nonpolyA","LII-polyA","LIM-nonpolyA","LIM-polyA", "LBP-nonpolyA", "LBP-polyA"))
+# kable(total.reads, caption="Total Number of Reads")
+
+map.stats.longer <- map.stats.longer %>% mutate(`Reference Type` = sapply(primary.alignment.stats, function(x){
+  ifelse(grepl("total",x), "Total Reads",ifelse(grepl("genome",x), "Genome",
+         ifelse(grepl( "trans",x), "Transcriptome", NA)
+  ))
+}))
+
+map.stats.longer$`Reference Type` <- factor(map.stats.longer$`Reference Type`, levels = c("Total Reads", "Genome", "Transcriptome"))
+
+map.stats.longer %>% distinct()
+
+pcm <- ggplot(map.stats.longer, aes(x= Samples, y= value))+
+  geom_bar(stat="identity", position=position_dodge2(padding =0),aes(fill=`Reference Type`))+
+    theme_bw()+
+  facet_wrap(~Stat, scales = "free")+
+  theme(axis.text.x = element_text(angle = 90,hjust=0.95,vjust=0.2), axis.text = element_text(size=12), legend.title = element_text(size=12), legend.text = element_text(size=12), axis.title = element_text(size=12), strip.text = element_text(size = 12))+
+  scale_y_continuous(label=comma)+
+  labs(y="Number of Reads")+
+  scale_fill_manual(values=c("gray", "orange", "blue"))
+  
+pcm
+# ggsave(file.path(man.path, "figures/I.9.genome.trans.mapped.reads.summary.pdf"), pcm, width=9, height=5)
+  
+```
+
+
+
+
 ```{r}
 
 library(scales)
 gen.path <- file.path(cdna.path, "genome")
 cov_files <- list.files(file.path(gen.path, "qualimap"), pattern = "*coverage_across_reference.txt", recursive = TRUE, full.names = TRUE)
+cov_files
 
-# create a file take the average of two no polyA added copenhageni strain
+# #create a file take the average of two no polyA added copenhageni strain
 # copen.No.Q <- read.csv(cov_files[1], sep = "\t")
-# 
+# #
 # copen.No <- read.csv(cov_files[2], sep = "\t")
 # cov_files <- cov_files[seq(3,length(cov_files))]
-# 
+# #
 # copen.no.avg <- full_join(copen.No.Q, copen.No, by= "X.Position..bp.") %>% mutate(Coverage = (Coverage.x+Coverage.y)/2) %>% select(-c(Coverage.x, Coverage.y))
 
-# write.table(copen.no.avg, file.path(gen.path, "qualimap/Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail/raw_data_qualimapReport/nopolyAavg_copen_coverage_across_reference.txt"), sep="\t", row.names = FALSE, quote=FALSE)
+# write.table(copen.no.avg, file.path(gen.path, "qualimap/Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail_rna_filtered/raw_data_qualimapReport/nopolyAavg_copen_coverage_across_reference.txt"), sep="\t", row.names = FALSE, quote=FALSE)
 
 cov_files.edited <- cov_files[seq(3,length(cov_files))] # take out the original two no polyA copenhageni file from the file list
-all_samples <- list()
 
-
-plot_cov <- function(file){
+cov_files.edited
+# file <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/cDNA/genome/qualimap/Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail/raw_data_qualimapReport/nopolyAavg_copen_coverage_across_reference.txt"
+plot_cov <- function(file,plotTitle ,genSize, chrIsize){  
+  # title = title of the plot
+  # genSize = total reference genome length
+  # chrIsize= size of the first chromosome
+  ref.cov <- read.csv(file, sep="\t")
+  s <- unlist(strsplit(file, split="/", fixed=TRUE))
+  sample <- s[length(s)-2]
+  s2 <- unlist(strsplit(sample, split = "_", fixed= TRUE))
+  sample_abb <- paste(s2[1], s2[length(s2)], sep = "_") 
+  strain <- s2[1]
   
+  p1 <- ggplot(ref.cov, aes(x=X.Position..bp., y=Coverage))+
+    geom_line()+
+    scale_x_continuous(labels = comma,breaks=seq(0, genSize, by = 100000))+
+    scale_y_continuous(labels = comma,breaks=seq(0, 1500, by = 100),limits = c(0, 1700))+
+    geom_vline(xintercept = chrIsize, linetype="dotted", 
+                color = "blue")+
+    theme_bw()+
+    # scale_y_continuous(limits = c(-1,20))+
+    labs(x="Genome Positions (bp)", y= "Coverage", title = plotTitle)+
+    annotate("text", x=0, y=1000, label= "Chrom I",angle = 90, color="red") +
+    annotate("text", x=genSize - 150000, y=1000, label= "Chrom II", angle = 90, color="red") +
+    theme(axis.text.x = element_text(angle=90))
+  
+  
+  p1 
+  
+    
+}
+
+plot_log_cov <- function(file,plotTitle ,genSize, chrIsize){  
+  # title = title of the plot
+  # genSize = total reference genome length
+  # chrIsize= size of the first chromosome
   ref.cov <- read.csv(file, sep="\t")
   s <- unlist(strsplit(file, split="/", fixed=TRUE))
   sample <- s[length(s)-2]
@@ -346,26 +649,80 @@ plot_cov <- function(file){
   
   p1 <- ggplot(ref.cov, aes(x=X.Position..bp., y=log2(Coverage)))+
     geom_line()+
-    scale_x_continuous(labels = comma)+
-    geom_vline(xintercept = 4277185, linetype="dotted", 
+    scale_x_continuous(labels = comma,breaks=seq(0, genSize, by = 100000))+
+    scale_y_continuous(labels = comma,breaks=seq(0, 30, by = 10),limits = c(0, 30))+
+    geom_vline(xintercept = chrIsize, linetype="dotted", 
                 color = "blue")+
     theme_bw()+
-    scale_y_continuous(limits = c(-1,20))+
-    labs(x="Genome Positions (bp)", y= "Coverage (log2)", title = sample_abb)+
-    annotate("text", x=0, y=16, label= "Chr I:\nNC005823.1",angle = 90, color="red") +
-    annotate("text", x=4500000, y=16, label= "Chr II:\nNC_005824.1", angle = 90, color="red") 
+    # scale_y_continuous(limits = c(-1,20))+
+    labs(x="Genome Positions (bp)", y= "Coverage", title = plotTitle)+
+    annotate("text", x=0, y=20, label= "Chrom I",angle = 90, color="red") +
+    annotate("text", x=genSize - 150000, y=60000, label= "Chrom II", angle = 90, color="red") +
+    theme(axis.text.x = element_text(angle=90))
   
-  p1
-    
+  bp <- ggplot_build(p1)$data[[1]] %>% arrange(desc(y)) # get the postion with highest mapping frequencies in descending order
+  p1 
+  
 }
 
 
-all_cdna_plots <- lapply(cov_files.edited, plot_cov)
+p1 <- plot_cov(cov_files.edited[1], "LIC-noPolyA", 4627366, 4277185) # average copenhageni no polyA 
+bp <- ggplot_build(p1)$data[[1]] %>% arrange(desc(y)) # get the postion with highest mapping frequencies in descending order
+bp
+p2 <- plot_cov(cov_files.edited[2], "LIC-PolyA", 4627366, 4277185) # copenhageni polyA 
+bp <- ggplot_build(p2)$data[[1]] %>% arrange(desc(y)) # get the postion with highest mapping frequencies in descending order
+bp
+p3 <- plot_cov(cov_files.edited[3], "LII-noPolyA", 4885316, 4367462) # Icterohaemorrhagiae no polya
+p4 <- plot_cov(cov_files.edited[4], "LII-PolyA", 4885316, 4367462) # Icterohaemorrhagiae polya
+bp <- ggplot_build(p4)$data[[1]] %>% arrange(desc(y)) # get the postion with highest mapping frequencies in descending order
+bp
+p5 <- plot_cov(cov_files.edited[5], "LIM-noPolyA", 4885316, 4367462) # mankarso no polya
+p6 <- plot_cov(cov_files.edited[6], "LIM-PolyA", 4885316, 4367462) # mankarso polya
+p7 <- plot_cov(cov_files.edited[7], "LBP-noPolyA", 3951448, 3599677) # patoc no polya
+p8 <- plot_cov(cov_files.edited[8], "LBP-PolyA", 3951448, 3599677) # patoc polya
+
+all_cdna_plots <- list(p1,p2,p3,p4,p5,p6,p7,p8)
 
 require(gridExtra)
 combined_p <- do.call(grid.arrange,  c(all_cdna_plots, ncol=2))
 
-# ggsave(file.path(man.path, "figures/I.3.full.genome.cov.to.ref.pdf"), combined_p, width = 15, height = 13)
+# ggsave(file.path(man.path, "figures/I.3.full.genome.cov.to.ref.notlog.pdf"), combined_p, width = 15, height = 13)
+
+# 
+# # plot coverages in log scale
+# 
+# l1 <- plot_log_cov(cov_files.edited[1], "LIC-noPolyA", 4627366, 4277185) # average copenhageni no polyA 
+# l2 <- plot_log_cov(cov_files.edited[2], "LIC-PolyA", 4627366, 4277185) # copenhageni polyA 
+# l3 <- plot_log_cov(cov_files.edited[3], "LII-noPolyA", 4885316, 4367462) # Icterohaemorrhagiae no polya
+# l4 <- plot_log_cov(cov_files.edited[4], "LII-PolyA", 4885316, 4367462) # Icterohaemorrhagiae polya
+# l5 <- plot_log_cov(cov_files.edited[5], "LIM-noPolyA", 4627366, 4277185) # mankarso no polya
+# l6 <- plot_log_cov(cov_files.edited[6], "LIM-PolyA", 4627366, 4277185) # mankarso polya
+# l7 <- plot_log_cov(cov_files.edited[7], "LBP-noPolyA", 3951448, 3599677) # patoc no polya
+# l8 <- plot_log_cov(cov_files.edited[8], "LBP-PolyA", 3951448, 3599677) # patoc polya
+# 
+# all_cdna_plots_log <- list(l1,l2,l3,l4,l5,l6,l7,l8)
+# 
+# require(gridExtra)
+# combined_p_log <- do.call(grid.arrange,  c(all_cdna_plots_log, ncol=2))
+# 
+# # ggsave(file.path(man.path, "figures/I.3.full.genome.cov.to.ref.log.pdf"), combined_p_log, width = 15, height = 13)
 ```
+## cDNA read quality assessment
+```{r}
+# average raw read length from each cDNA samples (fastQC), can be find in the multiqc file QC/dRNA-cDNA-dataset1.html
+cdna_read_length <- c(1541, 1961, 1977, 1486, 1749, 1626, 1789, 1830, 1751)
+cdna_gc <- c(50,51, 49, 50, 49, 51, 48, 50,49)
+mean(cdna_gc) # 49.67%
+sd(cdna_gc) #1 %
 
 
+
+
+# reads mapped to cDNA with reads mapped to rRNA (16S and 23S) filtered
+rna_filtered_cdna <- read.csv(file.path(cdna.path, "genome/cDNA_rna_filtered_genome_map_statistics.csv"))
+mean(rna_filtered_cdna$GC.content) #38.87811
+sd(rna_filtered_cdna$GC.content)#4.482051
+
+
+
+```

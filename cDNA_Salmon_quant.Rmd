@@ -1,0 +1,136 @@
+---
+title: "cDNA_Salmon_Align_quant"
+author: "Rachel Xu"
+date: "11/14/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tximport)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+```
+
+# list samples, read int metadata
+```{r}
+
+salmon_dir <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/cDNA/Salmon/align_quant/"
+
+cdna.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/cDNA"
+trans.path <- file.path(cdna.path, "transcriptome")
+ref.path <- file.path(cdna.path, "../reference")
+
+```
+
+
+# read in salmon files
+```{r}
+# list all files
+salmonfiles <- file.path(salmon_dir,list.files(salmon_dir, recursive = T, pattern="quant.sf"))
+# check if all these files exist
+all(file.exists(file.path(salmon_dir,salmonfiles)))
+
+# function to read in each salmon quan.sf file
+read_quant <- function(filename){
+  sample <- read.csv(filename, sep="\t") # read file
+  sample$sample_name <- basename(dirname(filename)) # sample name
+  s <- unlist(strsplit(basename(dirname(filename)), split="_")) 
+  strain_1 <- s[1]
+  sample$strain <- switch( # get strain abbrivation
+    strain_1,
+    Copenhageni = "LIC",
+    Icterohaemorrhagiae = "LII",
+    Mankarso="LIM",
+    Patoc="LBP"
+  )
+  sample$polya <- ifelse( # whether is polya-ed 
+    s[length(s)-1] == "Qiagen",
+    "NoPolyATail",
+    s[length(s)-1]
+  )
+  sample
+}
+
+
+salmon_quant_results <- lapply(salmonfiles, read_quant) # read all cdna files in a list of tables
+
+
+combined_cdna_salmon <- do.call(rbind, salmon_quant_results) # combine all tables in the list into a big data frame
+
+```
+
+
+# Get Highest Expressed Transcritps 
+```{r}
+library(ggVennDiagram)
+library(ggvenn)
+  library(VennDiagram)
+
+top_tpm_cdna <- combined_cdna_salmon %>% group_by(strain, polya) %>% slice_max(order_by = TPM, n = 100)
+combined_cdna_salmon %>% group_by(strain, polya) %>% subset(strain == "LIC" & polya == "NoPolyATail") %>% arrange(desc(TPM)) %>% ungroup()%>% select(Name) %>% distinct() %>% head(100) %>% unlist()
+
+x <- list(`LIC-nonpolyA` = combined_cdna_salmon %>% group_by(strain, polya) %>% subset(strain == "LIC" & polya == "NoPolyATail") %>% arrange(desc(TPM)) %>% ungroup()%>% select(Name) %>% distinct() %>% head(100) %>% unlist(), # take the top 100 distinct transcript from both Copenhageni non polyA sample
+     `LIC-polyA` = top_tpm_cdna %>% subset(strain == "LIC" & polya == "PolyATail") %>%ungroup() %>% select(Name) %>% unlist(),
+     `LII-nonpolyA`= top_tpm_cdna %>% subset(strain == "LII" & polya == "NoPolyATail") %>%ungroup() %>% select(Name) %>% unlist(),
+     `LII-polyA` = top_tpm_cdna %>% subset(strain == "LII" & polya == "PolyATail") %>%ungroup() %>% select(Name) %>% unlist(),
+     `LIM-nonpolyA` = top_tpm_cdna %>% subset(strain == "LIM" & polya == "NoPolyATail") %>%ungroup() %>% select(Name) %>% unlist(),
+     `LIM-polyA` = top_tpm_cdna %>% subset(strain == "LIM" & polya == "PolyATail") %>%ungroup() %>% select(Name) %>% unlist(),
+     `LBP-nonpolyA` = top_tpm_cdna %>% subset(strain == "LBP" & polya == "NoPolyATail") %>%ungroup() %>% select(Name) %>% unlist(),
+     `LBP-polyA` = top_tpm_cdna %>% subset(strain == "LBP" & polya == "PolyATail") %>%ungroup() %>% select(Name) %>% unlist())
+
+
+ venn.diagram(x[7:8], fill = c("lightblue", "purple"), 
+             alpha = c(0.5, 0.5), lwd =0, file.path(man.path, "figures/I.8.cDNA.top100.mapped.transcripts.venn78.tiff"), cat.cex = c(1,1), cat.position=c(12,12), margin =0.2)
+
+
+
+
+data.frame(Name = intersect(x$`LIC-nonpolyA`, x$`LIC-polyA`))
+
+```
+
+# expression level of top 10 most highly expressed gene in cDNA samples
+```{r}
+ref_files <- list.files(file.path(ref.path), pattern = "*_feature_table.txt")
+
+all_ref_feature <- data.frame(chromosomep=character(), start=numeric(), end=numeric(), strand=character(), non.redundant_refseq=character(), locus_tag=character(),name=character(), symbol=character(), feature_interval_length=numeric())
+for (file in ref_files){
+    feature_table <- read.csv(file.path(ref.path, file), sep = '\t') %>% subset(X..feature != "gene") %>% select(c(chromosome, start, end, strand, non.redundant_refseq, locus_tag,name, symbol, feature_interval_length))
+    all_ref_feature <- rbind(all_ref_feature,feature_table)
+  
+}
+
+all_ref_feature  <- all_ref_feature %>% rename(wp_name = non.redundant_refseq)
+
+
+top_tpm_cdna <- combined_cdna_salmon %>% group_by(sample_name) %>% slice_max(order_by = TPM, n = 10)
+top_tpm_cdna_avg <- top_tpm_cdna %>% group_by(strain, polya, Name) %>% summarise(TPM=mean(TPM))
+
+top_tpm_cdna_avg<- top_tpm_cdna_avg %>% mutate(wp_name = sapply(Name, function(x){
+    s <- unlist(strsplit(x, "_", fixed=TRUE))
+    paste(s[4], s[5], sep="_")}))
+
+all_ref_feature
+top_tpm_cdna_anot <- left_join(top_tpm_cdna_avg, all_ref_feature) %>% subset(chromosome %in% c("I","II","p74","p1" , "p2" ))
+unique(all_ref_feature$chromosome)
+top_tpm_cdna_anot$strain <- factor(top_tpm_cdna_anot$strain, levels=c("LIC","LII","LIM","LBP"))
+top_tpm_cdna_anot <- top_tpm_cdna_anot %>% mutate(label = paste(wp_name, name,sep="\n"))
+
+library(scales)
+p1 <- ggplot(top_tpm_cdna_anot, aes(x=label, y=TPM))+
+  geom_bar(stat="identity")+
+  facet_wrap(strain~polya, scales="free", ncol=2)+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=90, size = 12,hjust=0.95,vjust=0.2), axis.text = element_text(size=12), legend.title = element_text(size=12), legend.text = element_text(size=12), axis.title = element_text(size=12), strip.text = element_text(size = 12))+
+  scale_y_continuous(label=comma)+
+  labs(x="Top 10 Expressed Transcripts", y = "transcript per million (TPM)")
+
+
+ggsave(file.path(man.path, "figures/I.10.top10.transcript.tpm.cdna.pdf"), p1, width = 15, height = 20)
+````
+

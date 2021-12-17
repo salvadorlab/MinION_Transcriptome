@@ -12,9 +12,9 @@ knitr::opts_chunk$set(echo = TRUE)
 ### set path and sample names
 ```{r}
 
-nano.path<- "/Users/rachel/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/polyAtail/nanopolish_output"
+nano.path<- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/polyAtail/nanopolish_output"
 
-
+man.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/manuscript/characterize"
 
 ```
 
@@ -45,20 +45,24 @@ Q36.Cop.DRNA.R$sample <- "Q36.Cop.DRNA.R"
 Q36.Cop.DRNA.R$temp <- "Q36"
 
 directRna.nano.combined <- rbind(Q29.Cop.DRNA, Q29.Cop.DRNA.R,Q36.Cop.DRNA,Q36.Cop.DRNA.R)
-
-directRna.nano.combined
+summary(directRna.nano.combined$polya_length)
+summary(directRna.nano.combined[directRna.nano.combined$temp=="Q29",]$polya_length)
+summary(directRna.nano.combined[directRna.nano.combined$temp=="Q36",]$polya_length)
 ```
 
 
 ### plot over length of the polya tail for each sample
 ```{r}
 library(ggplot2)
-ggplot(directRna.nano.combined, aes(x= sample, y=log(polya_length)))+
+ggplot(directRna.nano.combined, aes(x= sample, y=polya_length))+
   geom_violin(aes(fill=temp))+
-  geom_boxplot(width=0.1)+
+  geom_boxplot(width=0.1, outlier.size=1)+
   theme_bw()+
   scale_fill_manual(values=c("#bfc0c0", "#ef8354"))+
-  labs(y="PolyA tail length estimates (Log)")
+  scale_y_continuous(limits = c(0,950), breaks=seq(0,950,100))+
+  labs(y="PolyA tail length (bp)")
+
+ggsave(file.path(man.path, "II.10.drna.tail.nanopolish.boxviolin.pdf"), height = 7)
 ```
 
 # polyA tail length vs. position
@@ -77,7 +81,8 @@ plot
 
 # polyA tail abundance vs. position
 ```{r}
-ggplot(directRna.nano.combined, aes(x=position))+
+library(ggpmisc)
+p <- ggplot(directRna.nano.combined, aes(x=position))+
   #  geom_histogram(bins = 500, aes(fill=temp))+
   # geom_freqpoly(binwidth = 500, aes(color=temp))+
   geom_line(aes(color=temp),stat  = "count")+
@@ -89,6 +94,27 @@ ggplot(directRna.nano.combined, aes(x=position))+
   scale_y_continuous(label=comma)+
   labs(y="polyA tail abundance")
 
+pb <- ggplot_build(p)
+
+# get global maximum for each sample
+global_maxima<- pb[['data']][[1]] %>% group_by(PANEL) %>% filter(count == max(count)) 
+global_maxima$sample <-c("Q29.Cop.DRNA","Q29.Cop.DRNA.R","Q36.Cop.DRNA","Q36.Cop.DRNA.R")
+
+maximum_stat_added <- left_join(directRna.nano.combined,global_maxima)
+
+p <- ggplot(maximum_stat_added, aes(x=position))+
+  geom_line(aes(color=temp),stat  = "count")+
+  geom_text(aes(label=x))
+  facet_wrap(vars(sample),ncol =1)+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle=90))+
+  scale_color_manual(values=c("#79aca9", "#ef8354"))+
+  scale_x_continuous(breaks  = seq(0, 4300000, by = 100000), label=comma)+
+  scale_y_continuous(label=comma)+
+  labs(y="polyA tail abundance")
+p
+
+# ggsave("/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/manuscript/figures/dRNA.polyATail_Abundance_vs_position.pdf")
 # plot
 # pg <- ggplot_build(plot)
 # data.frame(pg$data[[1]]) %>% subset(colour=="#79aca9") %>% subset(y==max(y))
@@ -128,7 +154,8 @@ p1 <- ggplot(directRna.nano.combined, aes(x=biotype, y=log(polya_length)))+
   theme_bw()+
   theme(axis.text.y = element_blank(),axis.title.y =element_blank())+
   scale_x_discrete(position = "top")+
-  scale_y_continuous(label=comma)
+  scale_y_continuous(label=comma) +
+  labs(y="poly A tail length bps (log)")
 
 p2 <- ggplot(directRna.nano.combined, aes(x=biotype)) +
   geom_bar(stat="count",  alpha=0.2)+
@@ -138,10 +165,10 @@ p2 <- ggplot(directRna.nano.combined, aes(x=biotype)) +
   theme(axis.title.y =element_blank(),axis.text.y = element_text(hjust=0.5),legend.position = "none")+
   scale_y_continuous(label=comma)
 
-grid.newpage()
-plot <- grid.draw(cbind(ggplotGrob(p1), ggplotGrob(p2), size = "last"))
-plot
 
+plot <- grid.arrange(cbind(ggplotGrob(p1), ggplotGrob(p2), size = "last"))
+plot
+ggsave(file.path(man.path, "II.11.drna.nanopolish.biotype.vs.taillength.pdf"),plot, height = 7)
 ```
 
 # MAP to Transcriptome 

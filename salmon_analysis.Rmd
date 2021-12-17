@@ -92,16 +92,18 @@ head(cts,2)
 ```
 
 ```{r}
-direct_rna_meta$samples<- c("Q29.2","Q29.1","Q36.2","Q36.1")
-salmon_direct_meta <- direct_rna_meta[,c("samples","condition")]
+direct_rna_meta$samples<- c("Q29.2","Q29.1","Q36.2","Q36.1") 
+
+salmon_direct_meta <- direct_rna_meta[,c("batch","condition")]
+
 library("DESeq2")
 ddsTxi <- DESeqDataSetFromTximport(txi,
                                    colData = salmon_direct_meta,
-                                   ~ samples+condition)
+                                   ~ condition)
 
 ddsTxi$condition <- relevel(ddsTxi$condition, ref="Q29")
 
-salmon.deseq <- DESeq(ddsTxi, test="LRT", reduced = "~samples")
+salmon.deseq <- DESeq(ddsTxi)
 
 deseq.results <- DESeq2::results(salmon.deseq)
 deseq.results<-deseq.results[order(deseq.results$padj),]
@@ -227,7 +229,10 @@ plotCounts(ddsTxi, "gene-LIC_RS00005",main="dnaA(gene-LIC_RS00005)" )
 plotCounts(ddsTxi,"gene-LIC_RS00015", main="recF(gene-LIC_RS00015)")
 plotCounts(ddsTxi,"gene-LIC_RS00025", main="gyrB(gene-LIC_RS00025)")
 plotCounts(ddsTxi,"gene-LIC_RS05505", main="pcnB(gene-LIC_RS05505)")
-plotCounts(ddsTxi,"gene-LIC_RS13855", main="PNPase(gene-LIC_LIC_RS13855)")
+plotCounts(ddsTxi,"gene-LIC_RS13855", main="PNPase(gene-LIC_RS13855)")
+plotCounts(ddsTxi,"rna-LIC_RS19860", main="rnpB(rna-LIC_RS19860)")
+plotCounts(ddsTxi,"gene-LIC_RS10750", main="ybeY(gene-LIC_RS10750)")
+
 ```
 
 
@@ -518,20 +523,28 @@ ggplot(upreg.count_longer,aes(x=temperature, y=count,shape=replicate))+
 ```
 
 ### plot genes with interest
+- genes that mapped to transcriptome with highest coverages
+- cdna and direct RNA
 ```{r}
 # list of highest coverage transcript from cDNA polyA vs. nonpolyA comparsion
 cdna.top10.cov.transcript <- read.csv("/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/cDNA/transcriptome/cDNA_top10Mapped_transcript_statistics.csv")%>% select(-c("X")) %>% mutate(match_locus = sapply(locus_tag, function(x){
   paste0("gene-", x)
+})) %>% subset(is.PolyA == "PolyATail")
+cdna.top10.cov.transcript
+drna.top10.cov.transcript <- read.csv("/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/directRNA/transcriptome/directRNA_top10Mapped_transcript_statistics.csv") %>% select(-c("X")) %>% mutate(match_locus = sapply(locus_tag, function(x){
+  paste0("gene-", x)
 }))
 
+sort(table(cdna.top10.cov.transcript$protein_name))
 # unique locus name from top mapped cDNA samples
-locus_names <- unique(cdna.top10.cov.transcript$match_locus)
-
+locus_names <- unique(cdna.top10.cov.transcript$match_locus) # change this line for shift between cDNA and direct RNA 
+length(locus_names)
 edgeR_salmonDF %>% subset(salmon_tax %in% locus_names) %>% subset(diffexpressed != "Not differentially expressed")
 edgeR_salmonDF %>% subset(salmon_tax %in% locus_names) %>% subset(FDR < 0.05)
 
 count.df.annot <- read.csv( "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/directRNA.Samples.Results/Diff.Exp.Genes/normalized.gene.counts.allgenes.DRNA.edgeR.csv") %>% select(-c("X"))
 
+gene <- "rna-LIC_RS19860"
 plot_gene <- function(gene){
 df <- count.df.annot %>% subset(salmon_tax==gene) 
 df <- df %>% pivot_longer(colnames(df)[-c(1,2)], names_to = "sample", values_to="count") %>% mutate(label=paste0(df$gene_name[1]," (", df$salmon_tax[1], ")"))
@@ -546,8 +559,10 @@ ggplot(df, aes(x= condition, y = count,color=replicate))+
 }
 
 
-plot_gene("gene-LIC_RS13855")
-
+plot_gene("rna-LIC_RS19860")
+gene-LIC_RS00180
+plot_gene("gene-LIC_RS00180")
+plot_gene("gene-LIC_RS10750")
 
 top.trans.plots <- lapply(locus_names, plot_gene)
 
