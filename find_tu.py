@@ -51,10 +51,10 @@ for chrom in chroms_list:
 
 for chrom in all_reads.keys(): # loop through chroms
     print(chrom)
-    chrom="NC_005823.1"
+    # chrom="NC_005823.1"
     for strand in all_reads[chrom].keys(): # loop through strands # HOW TO HANDLE LAGGING STRAND???????
         print(strand)
-        stand="lead"
+        # strand="lead"
         all_reads[chrom][strand].sort() # sort all reads based on the start site (for lag strand, is end site)
         
         cur_cluster_start_index = 0 # current cluster starts from this read index, reset for every new cluster
@@ -71,12 +71,15 @@ for chrom in all_reads.keys(): # loop through chroms
                 cur_read_index += 1
                 pre_start = start # now the start of the current read become the pre-start for next iteration
             else: # if the start sites of the two reads are further than 10, save all the reads from previous loops into a cluster
-                # the cluster starts with the first read index recorded for this cluster, and end with the maximum end position for all the reads in this cluster
-                all_clusters[chrom][strand].append((all_reads[chrom][strand][cur_cluster_start_index][0], max(end_list))) 
+                # the cluster starts with the first read index recorded for this cluster, and end with the maximum end position for all the reads in this cluster, 
+                # also with size of the cluster
+                all_clusters[chrom][strand].append((all_reads[chrom][strand][cur_cluster_start_index][0], max(end_list), len(end_list))) 
                 end_list=[end] # end list reinitiated for the new cluster.
                 pre_start=start
                 cur_read_index += 1
                 cur_cluster_start_index = cur_read_index # the new clusters starts, from the current read 
+
+# Next step: cluster overlapping clusters into ORFs, how to filter clusters
                                 
 
 
