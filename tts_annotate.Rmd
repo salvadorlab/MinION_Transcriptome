@@ -1,0 +1,309 @@
+---
+title: "tts_annotation"
+author: "Rachel Xu"
+date: "2/26/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+tts_path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/tu_annotation/TTS"
+
+
+```
+
+
+# identify parameters for TTS search
+- each reads from cDNA and dRNA alignments were clustered with window size 10 - 100 bps to search for the best window size for TTS clustering
+
+```{r}
+
+tts_window_cDNA <- read.csv(file.path(tts_path,"window", "cDNA_samples_window_search_TTS.tab"), sep="\t") %>% mutate(samples=
+  case_when(
+    sample == "Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail_Qiagen_rna_filtered" ~ "LIC-cDNA-nonpolyA_Q",
+    sample =="Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail_rna_filtered" ~ "LIC-cDNA-nonpolyA",
+    sample =="Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_PolyATail_rna_filtered"~"LIC-cDNA-polyA"
+  )
+)
+
+ggplot(tts_window_cDNA, aes(x=cluster_window, y= num_tts))+
+  geom_point()+
+  facet_wrap(vars(samples), ncol = 1,scales = "free_y")+
+    scale_x_continuous(breaks = seq(0,150,5))+
+  theme_bw()+
+  labs(x="Window Size", y = "number of TTS")
+
+tts_window_dRNA <- read.csv(file.path(tts_path, "window", "dRNA_samples_window_search_TTS.tab"), sep="\t") %>% mutate(samples=
+  case_when(
+    sample =="LIC_NOPOLYA_rna_filtered"~ "LIC-dRNA-nonpolyA",
+    sample =="LIC_POLYA_DRNA_CDNA_rna_filtered" ~ "LIC-dRNA-cDNA-polyA",
+    sample =="LIC_POLYA_rna_filtered" ~ "LIC-dRNA-polyA",
+    sample =="Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA_rna_filtered" ~ "Q29-dRNA-nonpolyA-R1",
+    sample =="Q29_Copenhageni_Basecalled-June_11_2020_Repeat_Direct-RNA_rna_filtered" ~ "Q29-dRNA-nonpolyA-R2",
+    sample =="Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA_rna_filtered" ~ "Q36-dRNA-nonpolyA-R2",
+   sample =="Q36_Copenhageni_Basecalled_May_31_2020_Direct-RNA_rna_filtered" ~ "Q36-dRNA-nonpolyA-R1")
+)
+
+
+ggplot(tts_window_dRNA, aes(x=cluster_window, y= num_tts))+
+  geom_point()+
+  facet_wrap(vars(samples), ncol = 1,scales = "free_y")+
+    scale_x_continuous(breaks = seq(0,150,5))+
+  theme_bw()+
+  labs(x="Window Size", y = "number of TTS")
+```
+
+
+```{r}
+tts_window_cDNA <- read.csv(file.path(tu_path, "window","cDNA_samples_window_search_TTS.tab"), sep="\t") %>% mutate(samples=
+  case_when(
+    sample == "Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail_Qiagen_rna_filtered" ~ "LIC-cDNA-nonpolyA_Q",
+    sample =="Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail_rna_filtered" ~ "LIC-cDNA-nonpolyA",
+    sample =="Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_PolyATail_rna_filtered"~"LIC-cDNA-polyA"
+  )
+)
+
+ggplot(tts_window_cDNA, aes(x=cluster_window, y= num_tts))+
+  geom_point()+
+  facet_wrap(vars(samples), ncol = 1,scales = "free_y")+
+    scale_x_continuous(breaks = seq(0,150,5))+
+  theme_bw()+
+  labs(x="Window Size", y = "number of tts")
+
+tts_window_dRNA <- read.csv(file.path(tu_path, "window","dRNA_samples_window_search_TTS.tab"), sep="\t") %>% mutate(samples=
+  case_when(
+    sample =="LIC_NOPOLYA_rna_filtered"~ "LIC-dRNA-nonpolyA",
+    sample =="LIC_POLYA_DRNA_CDNA_rna_filtered" ~ "LIC-dRNA-cDNA-polyA",
+    sample =="LIC_POLYA_rna_filtered" ~ "LIC-dRNA-polyA",
+    sample =="Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA_rna_filtered" ~ "Q29-dRNA-nonpolyA-R1",
+    sample =="Q29_Copenhageni_Basecalled-June_11_2020_Repeat_Direct-RNA_rna_filtered" ~ "Q29-dRNA-nonpolyA-R2",
+    sample =="Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA_rna_filtered" ~ "Q36-dRNA-nonpolyA-R2",
+   sample =="Q36_Copenhageni_Basecalled_May_31_2020_Direct-RNA_rna_filtered" ~ "Q36-dRNA-nonpolyA-R1")
+)
+
+
+ggplot(tts_window_dRNA, aes(x=cluster_window, y= num_tts))+
+  geom_point()+
+  facet_wrap(vars(samples), ncol = 1,scales = "free_y")+
+    scale_x_continuous(breaks = seq(0,150,5))+
+  theme_bw()+
+  labs(x="Window Size", y = "number of TTS")
+
+
+```
+
+# cluster TTS
+- TTS obtained from different samples were clustered group_by chrom and strand
+- ```cluster_tts.py``` script were used to obtain clusters of TTS
+  - the script takes the TTS annotated from the same chrom and strand from the block above
+  - add cluster ID as a new column
+  
+### TTS overlap between seqencing method replicates
+```{r}
+####################################################################################################
+#### cDNA check 
+########################################################################################################
+# all_cdna_sample_window <- data.frame(window_size=as.integer(), l1vl2=as.integer(),l2vl3=as.integer(),l1vl3=as.integer(),intersect=as.integer())
+# for (window_size in seq(0,300,10)){
+window_size <- 10
+lead_TTS_files_cDNA <- list.files(file.path(tu_path, "combined_output"), pattern = paste0("*cDNA_raw_TTS_clustered_", window_size,".csv") ,full.names = TRUE)
+
+cDNA_lead_tts <- lapply(lead_TTS_files_cDNA, function(x){read.csv(x, col.names = c("chrom",	"start",	"strand",	"gene",	"LIC.cDNA.nonpolyA_Q",	"LIC.cDNA.polyA",	"LIC.cDNA.nonpolyA", "cluster"))})
+
+cDNA_lead_tts_df <- do.call(rbind, cDNA_lead_tts) %>% arrange(chrom)
+
+l1 <- cDNA_lead_tts_df %>% subset(LIC.cDNA.nonpolyA_Q == "x")  %>% select(cluster) %>% unlist()
+l2 <- cDNA_lead_tts_df %>% subset(LIC.cDNA.polyA == "x")  %>% select(cluster) %>% unlist()
+l3 <- cDNA_lead_tts_df %>% subset(LIC.cDNA.nonpolyA == "x")  %>% select(cluster) %>% unlist()
+
+
+library(VennDiagram)
+library(RColorBrewer)
+library(UpSetR)
+
+
+venn.diagram(
+        x = list(l1, l2,l3),
+        category.names = c("LIC.cDNA.nonpolyA_Q " , "LIC.cDNA.polyA","LIC.cDNA.nonpolyA"),
+        filename = file.path(tts_path, "figures",'cDNA_replicates_TTS_intersect.png'),
+        output=TRUE,
+        fill=brewer.pal(3, "Pastel2"))
+
+####################################################################################################
+#### dRNA check 
+########################################################################################################
+
+# all_drna_sample_window <- data.frame(window_size=as.integer(), intersect=as.integer())
+# for (window_size in seq(0,300,10)){
+
+lead_TTS_files_drna <- list.files(file.path(tu_path, "combined_output"), pattern = paste0("*rawdRNA_raw_TTS_clustered_",window_size,".csv") ,full.names = TRUE)
+
+window_size <- 10
+
+drna_lead_tts <- lapply(lead_TTS_files_drna, function(x){read.csv(x, col.names = c("chrom",	"start",	"strand",	"gene",	"LIC-dRNA-nonpolyA","Q29-dRNA-nonpolyA-R2","Q29-dRNA-nonpolyA-R1",		"LIC-dRNA-polyA",	"LIC-dRNA-cDNA-polyA", "cluster"))})
+
+drna_lead_tts_df <- do.call(rbind, drna_lead_tts) %>% group_by(chrom, strand)%>%arrange(start, .by_group = TRUE)
+
+l1 <- drna_lead_tts_df %>% subset(`LIC.dRNA.polyA` == "x")  %>% select(cluster) %>% unlist()
+l2 <- drna_lead_tts_df %>% subset(`LIC.dRNA.cDNA.polyA` == "x")  %>% select(cluster) %>% unlist()
+l3 <- drna_lead_tts_df %>% subset(`LIC.dRNA.nonpolyA` == "x")  %>% select(cluster) %>% unlist()
+l4 <- drna_lead_tts_df %>% subset(`Q29.dRNA.nonpolyA.R1` == "x")  %>% select(cluster) %>% unlist()
+l5 <- drna_lead_tts_df %>% subset(`Q29.dRNA.nonpolyA.R2` == "x")  %>% select(cluster) %>% unlist()
+length(l5)
+length(intersect(l1,l3))
+   
+upset(fromList(list(LIC.dRNA.polyA=l1, LIC.dRNA.cDNA.polyA=l2,LIC.dRNA.nonpolyA=l3,Q29.dRNA.nonpolyA.R1=l4,Q29.dRNA.nonpolyA.R2=l5)), sets= c("LIC.dRNA.polyA" , "LIC.dRNA.cDNA.polyA","LIC.dRNA.nonpolyA", "Q29.dRNA.nonpolyA.R1", "Q29.dRNA.nonpolyA.R2"))  
+
+```
+
+### function to filter TTS for cDNA
+```{r}
+
+
+
+samples_cDNA <- c("LIC-cDNA-nonpolyA_Q",	"LIC-cDNA-polyA","LIC-cDNA-nonpolyA")
+samples_dRNA <- c("LIC-dRNA-nonpolyA","Q29-dRNA-nonpolyA-R1","Q29-dRNA-nonpolyA-R2",		"LIC-dRNA-cDNA-polyA",	"LIC-dRNA-polyA")
+
+#######################################################################
+#
+# filter TTS for cDNA sequenced samples
+#
+#######################################################################
+# file_name <- lead_TTS_files_cDNA[2]
+filter_lead_TTS_cDNA <- function(file_name){
+chromI_lead_tts <- read.csv(file_name, row.names = 1, col.names = c("chrom",	"start",	"strand",	"gene",	samples_cDNA , "cluster")) 
+
+# # TTS cluster with support of at least two samples were selected 
+# cluster_filtered <- chromI_lead_tts %>% pivot_longer(cols = c(starts_with("LIC")), names_to = "samples", values_to = "present") %>% subset(!is.na(present)) %>% group_by(cluster) %>% mutate(sample_present=n_distinct(samples)) %>% subset(!sample_present < 2) %>% select(cluster) %>% unlist()
+
+# in every cluster, the most far left (5') site were identified as teh TTS of the cluster, only cluster with at least 2 samples were selected
+chromI_lead_tts_filtered <- chromI_lead_tts %>% pivot_longer(cols = c(starts_with("LIC")), names_to = "samples", values_to = "present") %>% subset(!is.na(present)) %>%  group_by(cluster) %>% mutate(TTS_min = max(start)) %>% select(-start) %>% ungroup() %>% distinct()%>% pivot_wider(names_from = samples, values_from = present) #%>% subset(!(is.na(LIC.cDNA.polyA) & !cluster %in% cluster_filtered)) %>% distinct( .keep_all = TRUE) # filter,drop TTS didn't find in the polyA sample and only existed in one of the nonpolyA samples
+
+
+chromI_lead_tts_filtered
+}
+
+#######################################################################
+#
+# filter TTS for dRNA sequenced samples
+#
+#######################################################################
+# file_name <- lead_TTS_files_dRNA[2]
+
+filter_lead_TTS_dRNA <- function(file_name){
+chromI_lead_tts <- read.csv(file_name, row.names = 1, col.names = c("chrom",	"start",	"strand",	"gene",	samples_dRNA , "cluster"))
+
+# # TTS cluster with support of at least two samples were selected 
+# cluster_filtered <- chromI_lead_tts %>% pivot_longer(cols = c(starts_with("LIC"), starts_with("Q")), names_to = "samples", values_to = "present") %>% subset(!is.na(present)) %>% group_by(cluster) %>% mutate(sample_present=n_distinct(samples))  %>% subset(!sample_present < 2) %>% select(cluster) %>% unlist()
+
+# in every cluster, the most far left (5') site were identified as teh TTS of the cluster, only cluster with at least 2 samples were selected
+chromI_lead_tts_filtered <- chromI_lead_tts %>% pivot_longer(cols = c(starts_with("LIC"), starts_with("Q")), names_to = "samples", values_to = "present") %>% subset(!is.na(present)) %>%  group_by(cluster) %>% mutate(TTS_min = max(start)) %>% select(-start) %>% ungroup() %>% distinct() %>% pivot_wider(names_from = samples, values_from = present)#%>% subset(!((is.na(LIC.dRNA.cDNA.polyA) | is.na(LIC.dRNA.polyA)) & !cluster %in% cluster_filtered)) %>% distinct(.keep_all = TRUE) # drop TTS didn't identify in either of the polyA dRNA samples, and also only existed once in other samples.
+
+
+chromI_lead_tts_filtered
+}
+```
+
+### combine TTS from cDNA and dRNA
+```{r}
+
+# identify TTS using cDNA samples
+lead_TTS_files_cDNA <- list.files(file.path(tu_path, "combined_output"), pattern = "*leadrawcDNA_raw_TTS_clustered_10.csv", full.names = TRUE)
+
+lead_TTS_filtered_list <- lapply(lead_TTS_files_cDNA, filter_lead_TTS_cDNA)
+
+cDNA_TTS_final <- do.call(rbind, lead_TTS_filtered_list)%>%group_by(chrom) %>%arrange(TTS_min,.by_group = TRUE) %>% distinct(cluster, .keep_all = TRUE)# %>% select(!c("cluster")) %>% distinct(start, .keep_all = TRUE) %>% arrange(start)
+
+
+# identify TTS using dRNA samples
+lead_TTS_files_dRNA <- list.files(file.path(tu_path, "combined_output"), pattern = "*leadrawdRNA_raw_TTS_clustered_10.csv", full.names = TRUE)
+
+lead_TTS_filtered_list <- lapply(lead_TTS_files_dRNA, filter_lead_TTS_dRNA)
+
+dRNA_TTS_final <-  do.call(rbind, lead_TTS_filtered_list) %>%group_by(chrom) %>%arrange(TTS_min,.by_group = TRUE) %>% distinct(cluster, .keep_all = TRUE)#%>% select(!c("cluster"))
+
+cDNA_TTS_final$seq_method <- "cDNA"
+dRNA_TTS_final$seq_method <- "dRNA"
+
+dRNA_cDNA_lead_combined <- rbind(cDNA_TTS_final %>% select(!starts_with("LIC")), dRNA_TTS_final %>% select(!c(starts_with("LIC"), starts_with("Q")))) %>% group_by(chrom) %>% arrange(TTS_min, .by_group = TRUE) %>% select(!cluster)
+
+# write.csv(dRNA_cDNA_lead_combined, file.path(tu_path,"output","combined", "cDNA_dRNA_lead_TTS.csv"), quote=FALSE)
+```
+
+### for lagging stand tts identification
+```{r}
+
+# file_name <- lag_TTS_files[2]
+
+samples_cDNA <- c("LIC-cDNA-nonpolyA_Q",		"LIC-cDNA-polyA","LIC-cDNA-nonpolyA")
+samples_dRNA <- c("LIC-dRNA-nonpolyA","Q29-dRNA-nonpolyA-R2","Q29-dRNA-nonpolyA-R1","LIC-dRNA-polyA",	"LIC-dRNA-cDNA-polyA")
+
+#######################################################################
+#
+# filter TTS for cDNA sequenced samples
+#
+#######################################################################
+# file_name <- lag_TTS_files_cDNA[2]
+filter_lag_TTS_cDNA <- function(file_name){
+chromI_lag_tts <- read.csv(file_name, row.names = 1, col.names = c("chrom",	"start",	"strand",	"gene",	samples_cDNA , "cluster"))
+
+# TTS cluster with support of at least two samples were selected 
+cluster_filtered <- chromI_lag_tts %>% pivot_longer(cols = c(starts_with("LIC")), names_to = "samples", values_to = "present") %>% subset(!is.na(present)) %>% group_by(cluster) %>% count() %>% subset(!n < 2) %>% select(cluster) %>% unlist()
+
+# in every cluster, the most far left (5') site were identified as teh TTS of the cluster, only cluster with at least 2 samples were selected
+chromI_lag_tts_filtered <- chromI_lag_tts %>% pivot_longer(cols = c(starts_with("LIC")), names_to = "samples", values_to = "present") %>% subset(!is.na(present)) %>%  group_by(cluster) %>% mutate(TTS_max = min(start)) %>% select(-start) %>% ungroup() %>% distinct()%>% pivot_wider(names_from = samples, values_from = present)# %>% subset(!(is.na(LIC.cDNA.polyA) & !cluster %in% cluster_filtered)) %>% distinct( .keep_all = TRUE) # filter,drop TTS didn't find in the polyA sample and only existed in one of the nonpolyA samples
+
+chromI_lag_tts_filtered
+}
+
+#######################################################################
+#
+# filter TTS for dRNA sequenced samples
+#
+#######################################################################
+# file_name <- lag_TTS_files_dRNA[2]
+
+filter_lag_TTS_dRNA <- function(file_name){
+chromI_lag_tts <- read.csv(file_name, row.names = 1, col.names = c("chrom",	"start",	"strand",	"gene",	samples_dRNA , "cluster"))
+
+# TTS cluster with support of at least two samples were selected 
+cluster_filtered <- chromI_lag_tts %>% pivot_longer(cols = c(starts_with("LIC"), starts_with("Q")), names_to = "samples", values_to = "present") %>% subset(!is.na(present)) %>% group_by(cluster) %>% count() %>% subset(!n < 2) %>% select(cluster) %>% unlist()
+
+# in every cluster, the most far left (5') site were identified as teh TTS of the cluster, only cluster with at least 2 samples were selected
+chromI_lag_tts_filtered <- chromI_lag_tts %>% pivot_longer(cols = c(starts_with("LIC"), starts_with("Q")), names_to = "samples", values_to = "present") %>% subset(!is.na(present)) %>%  group_by(cluster) %>% mutate(TTS_max = min(start)) %>% select(-start) %>% ungroup() %>% distinct() %>% pivot_wider(names_from = samples, values_from = present)#%>% subset(!((is.na(LIC.dRNA.cDNA.polyA) | is.na(LIC.dRNA.polyA)) & !cluster %in% cluster_filtered)) %>% distinct(.keep_all = TRUE) # drop TTS didn't identify in both of the polyA dRNA samples, and also only existed once in other samples.
+
+
+chromI_lag_tts_filtered 
+}
+```
+
+```{r}
+
+# identify TTS using cDNA samples
+lag_TTS_files_cDNA <- list.files(file.path(tu_path, "combined_output"), pattern = "*lagrawcDNA_raw_TTS_clustered_10.csv", full.names = TRUE)
+
+lag_TTS_filtered_list <- lapply(lag_TTS_files_cDNA, filter_lag_TTS_cDNA)
+
+cDNA_TTS_final <- do.call(rbind, lag_TTS_filtered_list)%>% group_by(chrom)  %>% arrange(TTS_max, .by_group = TRUE)%>% distinct(cluster, .keep_all = TRUE)%>% select(!c("cluster"))
+
+
+# identify TTS using dRNA samples
+lag_TTS_files_dRNA <- list.files(file.path(tu_path, "combined_output"), pattern = "*lagrawdRNA_raw_TTS_clustered_10.csv", full.names = TRUE)
+
+lag_TTS_filtered_list <- lapply(lag_TTS_files_dRNA, filter_lag_TTS_dRNA)
+
+dRNA_TTS_final <-  do.call(rbind, lag_TTS_filtered_list) %>% arrange(chrom) %>% arrange(TTS_max, .by_group = TRUE)%>% distinct(cluster, .keep_all = TRUE)%>% select(!c("cluster"))
+
+
+cDNA_TTS_final$seq_method <- "cDNA"
+dRNA_TTS_final$seq_method <- "dRNA"
+
+dRNA_cDNA_lag_combined <- rbind(cDNA_TTS_final %>% select(!starts_with("LIC")), dRNA_TTS_final %>% select(!c(starts_with("LIC"), starts_with("Q")))) %>% group_by(chrom) %>% arrange(TTS_max, .by_group = TRUE)
+# write.csv(dRNA_cDNA_lag_combined, file.path(tu_path,"output", "combined","cDNA_dRNA_lag_TTS.csv"))
+```

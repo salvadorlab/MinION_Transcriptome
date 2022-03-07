@@ -1,0 +1,84 @@
+---
+title: "homopolymer_cov"
+author: "Rachel Xu"
+date: "12/27/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+homo.direct.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/directRNA/homopolymer"
+homo.direct2.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/directRNA_dataset2/homopolymer"
+homo.cdna.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/cDNA/homopolymer"
+homo.sub <- "homoA5"
+
+```
+
+# Read in transcript relative coverage file
+- this file includes cov at homoplymer region and 100bps flanking homopolymer
+- relative coverage was calculated using cov at the current bp over max cov of the transcript
+- homopolymer coordinates were identified with script: ```get_homo_coord.py```
+- relative cov of each base was calculated with script: ```relative_cov_per_base.py```
+- max cov was obtained using the python script: ```trans_max_cov_pos.py```
+- all scripts can be find in: ```/scratch/rx32940/minION/homopolymer_cov```
+```{r}
+# read file
+files_drna <- list.files(file.path(homo.direct.path, homo.sub), full.names = TRUE)
+files_drna2 <- list.files(file.path(homo.direct2.path, homo.sub), full.names = TRUE)
+files_cdna <- list.files(file.path(homo.cdna.path, homo.sub), full.names = TRUE)
+files <- c(files_drna, files_cdna,files_drna2)
+
+all_sample_homo_cov<- data.frame(fromHomePos=numeric(), avgCov= numeric(), sample=character(), platform = character(), polyAtail = character())
+for(file in files){
+  cur_file <- read.csv(file, sep="\t")
+  
+  sample <- unlist(strsplit(basename(file), split = ".", fixed = TRUE))[1] # get sample name
+  
+  sample_name <- switch(
+    sample,
+    LIC_NOPOLYA = "LIC-dRNA-nonpolyA",
+    LIC_POLYA_DRNA_CDNA = "LIC-dRNA-cDNA-polyA",
+    LIC_POLYA = "LIC-dRNA-polyA",
+    `Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail_Qiagen` = "LIC-cDNA-nonpolyA_Q",
+    `Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail` = "LIC-cDNA-nonpolyA",
+    `Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_PolyATail` = "LIC-cDNA-polyA",
+    `Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA`="Q29-dRNA-nonpolyA-R1",
+    `Q29_Copenhageni_Basecalled-June_11_2020_Repeat_Direct-RNA`="Q29-dRNA-nonpolyA-R2",
+    `Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA`="Q36-dRNA-nonpolyA-R2",
+    `Q36_Copenhageni_Basecalled_May_31_2020_Direct-RNA`="Q36-dRNA-nonpolyA-R1"
+  )
+  
+  # sequencing protocol, dRNA or cDNA
+  platform <- unlist(strsplit(sample_name, split="-", fixed=TRUE))[2]
+  
+  # polyA tail added?
+  polyAtail <- ifelse(unlist(strsplit(sample_name, split="-", fixed=TRUE))[3] == "nonpolyA", "nonpolyA", "polyA")
+  
+  # get the average cov across all transcripts mapped at the position flanking homopolymer region
+  avg_pos_cov <- cur_file %>% group_by(fromHomePos) %>% summarise(avgCov = mean(relative_cov, na.rm=TRUE)) %>% mutate(sample=sample_name) %>% mutate(platform = platform, polyAtail = polyAtail)
+  
+  all_sample_homo_cov <- rbind(all_sample_homo_cov,avg_pos_cov)
+}
+unique(all_sample_homo_cov$sample)
+
+```
+
+# plot relative cov at each position away from homopolymer
+```{r}
+library(ggplot2)
+library(plotly)
+p <- ggplot(all_sample_homo_cov, aes(x=fromHomePos, y=avgCov))+
+  facet_wrap(~platform)+
+  geom_line(aes(color=sample))+
+  scale_x_continuous(breaks = seq(-100,100,25), limits = c(-100,100))+
+  labs(x="5'-3'position relative to > 5bp homo(A)", y="relative cov over maximum cov of each transcript")+
+  theme(text = element_text(size = 12))+
+  theme_bw()
+
+ggplotly(p)
+ggsave("/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/manuscript/characterize/figures/IV.cov_flanking_homoA5.pdf",p,width = 7,height = 5)
+```

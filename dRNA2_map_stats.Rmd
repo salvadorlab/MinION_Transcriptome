@@ -1,0 +1,86 @@
+---
+title: "dRNA_dataset2_map_stats"
+author: "Rachel Xu"
+date: "12/21/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+d2path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/directRNA_dataset2"
+d2.trans <- file.path(d2path, "transcriptome")
+
+```
+
+## Transcripts Mapping Coverage Per Read
+- these files were generated using ```read_map_statistics.py``` in the ```/scratch/rx32940/minION/polyA_directRNA/map/transcriptome``` folder on sapelo2
+- p1: Fraction of Transcript covered by each read (only Primary Alignment is accounted for), Transcripts were binned based on their length in the reference transcriptome
+```{r}
+
+library(dplyr)
+
+ref.path <- file.path(d2path, "../reference")
+man.path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/manuscript/characterize"
+
+primary_align <- read.csv(file.path(d2.trans,"dRNA2_read_map_cov_frac_to_transcript.csv")) %>% subset(!(is_secondary == "True" | is_supplementary == "True"))
+
+avg_primary_align <- primary_align %>% mutate(Strain = sapply(Sample, function(x){
+  switch(
+    x,
+    LIC_POLYA="LIC-dRNA-polyA",
+    LIC_NOPOLYA = "LIC-dRNA-nonpolyA",
+    LIC_POLYA_DRNA_CDNA="LIC-dRNA-cDNA-polyA"
+  )
+})) %>% mutate(polyA=sapply(Sample, function(x){
+  switch(
+    x,
+    LIC_POLYA = "polyATailed",
+    LIC_POLYA_DRNA_CDNA="polyATailed_cDNA",
+    LIC_NOPOLYA = "nonpolyATailed"
+  )
+}))
+
+library(ggplot2)
+library(scales)
+library(ggpubr)
+library(rstatix)
+
+avg_primary_align$bins <- cut(avg_primary_align$Transcript.Len,breaks = c(0, 100,1500,3000,4500,6000,7500,9384), dig.lab=10)
+length(avg_primary_align$ReadID)
+
+# data frame to count number of reads mapped to transcripts at this length interval
+avg_primary_summary <- avg_primary_align %>% group_by(bins,  Strain,polyA) %>% summarise(num_transcripts=n_distinct(Transcript.Name))
+
+# calculate statistic significance between each transcript coverage fraction interval's polyA vs. nonPolyA sample's reads
+avg_primary_align$polyA <- factor(avg_primary_align$polyA, levels = c("polyATailed", "polyATailed_cDNA","nonpolyATailed" ))
+stat.test <- avg_primary_align %>% subset(bins != "(6000,7500]")  %>%
+  group_by(bins,Strain) %>%
+  pairwise.t.test(coverage.fraction~polyA) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_significance()%>%
+  add_xy_position(x = "bins", dodge = 0.8)
+
+t_test(avg_primary_align$coverage.fraction,factor(unique(avg_primary_align$polyA)))
+
+avg_primary_align$Strain <- factor(avg_primary_align$Strain, levels = c("LIC-dRNA-nonpolyA", "LIC-dRNA-polyA", "LIC-dRNA-cDNA-polyA"))
+avg_primary_summary$Strain <- factor(avg_primary_summary$Strain,levels = c("LIC-dRNA-nonpolyA", "LIC-dRNA-polyA", "LIC-dRNA-cDNA-polyA"))
+
+p1 <- ggplot(avg_primary_align, aes(x=bins, y= coverage.fraction))+
+  geom_boxplot(outlier.size = 1, position = position_dodge(preserve = "single"), aes(fill=Strain))+
+  theme_bw()+
+   theme(axis.text.x=element_text(angle=45, vjust=1, hjust = 1, size = 12), axis.text = element_text(size=12), legend.title = element_text(size=12), legend.text = element_text(size=12), axis.title = element_text(size=12), strip.text = element_text(size = 12))+
+  scale_fill_manual(values=c("lightblue", "orange","#F2F2C5","#80A66C"))+
+  labs(x="Transcript Length", y = "Transcript Coverage Fraction Per Read")+
+  scale_y_continuous(labels = comma,breaks=seq(0, 1, by = 0.25),limits = c(0, 1.18))+
+    geom_text(data = avg_primary_summary, aes(x=bins, y=1.08, label=num_transcripts, group=polyA), position = position_dodge(width =0.9), vjust =-0.4,size=3)
+
+p1
+ggsave(file.path(man.path, "figures/III.6.dRNA2.read.transcript.coverage.fraction.pdf"), p1, width = 10, height = 7)
+
+
+
+```

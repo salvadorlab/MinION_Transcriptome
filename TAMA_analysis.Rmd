@@ -1,0 +1,75 @@
+---
+title: "tama.analysis"
+author: "Rachel Xu"
+date: "2/24/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+
+tama_path <- "/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/TAMA/"
+
+```
+
+# get coverage identity distribution and percentage distribution for all samples
+- from TAMA's ```tama_collapse.py```
+```{r}
+
+all_tama_read_files <- list.files(file.path(tama_path, "read"), pattern="*_read.txt", full.names = TRUE)
+
+all_tama_read_df <- lapply(all_tama_read_files, function(x){read.csv(x, sep="\t") %>% select(c(mapped_flag, percent_coverage, percent_identity)) %>% mutate(sample=basename(x))})
+
+combined_tama_read_df<- do.call(rbind, all_tama_read_df)
+
+combined_tama_read_df_filtered <- combined_tama_read_df %>% mutate(samples=
+  case_when(
+    sample == "Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail_Qiagen_rna_filtered_read.txt" ~ "LIC-cDNA-nonpolyA_Q",
+    sample =="Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail_rna_filtered_read.txt" ~ "LIC-cDNA-nonpolyA",
+    sample =="Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_PolyATail_rna_filtered_read.txt"~"LIC-cDNA-polyA",
+    sample =="LIC_NOPOLYA_rna_filtered_read.txt"~ "LIC-dRNA-nonpolyA",
+    sample =="LIC_POLYA_DRNA_CDNA_rna_filtered_read.txt" ~ "LIC-dRNA-cDNA-polyA",
+    sample =="LIC_POLYA_rna_filtered_read.txt" ~ "LIC-dRNA-polyA",
+    sample =="Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA_rna_filtered_read.txt" ~ "Q29-dRNA-nonpolyA-R1",
+    sample =="Q29_Copenhageni_Basecalled-June_11_2020_Repeat_Direct-RNA_rna_filtered_read.txt" ~ "Q29-dRNA-nonpolyA-R2",
+    sample =="Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA_rna_filtered_read.txt" ~ "Q36-dRNA-nonpolyA-R2",
+   sample =="Q36_Copenhageni_Basecalled_May_31_2020_Direct-RNA_rna_filtered_read.txt" ~ "Q36-dRNA-nonpolyA-R1")
+) %>% mutate(seq_method = sapply(samples, function(x){
+  ifelse(x %in% c("LIC-cDNA-nonpolyA_Q",		"LIC-cDNA-polyA","LIC-cDNA-nonpolyA"), "cDNA", "dRNA")
+})) %>% select(!sample) %>% subset(mapped_flag != "chimeric") %>% subset(!mapped_flag %in% c("not_primary", "unmapped"))
+
+```
+
+```{r}
+
+median <- combined_tama_read_df_filtered  %>% group_by(mapped_flag, seq_method) %>% summarise(median = median(percent_coverage))
+
+combined_tama_read_df_filtered %>% subset()
+p1 <- ggplot(combined_tama_read_df_filtered, aes(x = percent_coverage))+
+  geom_density(aes(color=samples))+
+  facet_wrap(mapped_flag~seq_method)+
+    scale_color_manual(values = c(brewer.pal(10, "Paired")))+
+    theme_bw()+
+  scale_x_continuous(breaks = seq(0,100,10))
+ 
+
+p1 
+```
+
+```{r}
+
+
+p2 <- ggplot(combined_tama_read_df_filtered, aes(x =  percent_identity))+
+  geom_density(aes(color=samples))+
+  facet_wrap(mapped_flag~seq_method)+
+    scale_color_manual(values = c(brewer.pal(10, "Paired")))+
+    theme_bw()+
+  scale_x_continuous(breaks = seq(0,100,10))
+ 
+
+p2
+```
