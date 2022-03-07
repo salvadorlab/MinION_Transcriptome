@@ -3,24 +3,45 @@ import sys
 import pybedtools
 import re
 import subprocess
+import argparse
 from statistics import mode, multimode
+
+
+# parser=argparse.ArgumentParser(prog="findTU",usage='%(prog)s [TSS|TTS] [options]',description='Arguments to identify Leptospira Transcript TSS:')
+# parser.add_argument('feature',metavar='',type=str,help='specify if TSS or TTS need to be annotated')
+# parser.add_argument( "-p",'--prefix',metavar='',type=str,help='prefix of the output file (only prefix), default is input file name', default="")
+# parser.add_argument( "-o",'--output',metavar='',type=str,help='output file dir')
+# parser.add_argument( "-b",'--bam',metavar='',type=str,help='read alignment in bam format')
+# parser.add_argument( "-a",'--gff',metavar='',type=str,help='gff annotation file for the reference genome (.gff', default="")
+# parser.add_argument( "-F",'--forcebed',metavar='',type=str,help='new bed file will always generate from bam in the same dir', default=True)
+# parser.add_argument( "-t",'--threshold',metavar='',type=str,help='definition of read positions to classify in a cluster, default is within 10bps', default=10)
+# parser.add_argument( "-cf",'--genecovfilter',metavar='',type=str,help='proportion of total read coverage needed in a read cluster to keep the TSS, default is 0.3', default=0.3)
+# parser.add_argument( "-rf",'--genereadfilter',metavar='',type=str,help='number of reads needed in a read cluster to keep the TSS, default is 2 reads', default=2)
+# args = parser.parse_args()
+
+
+# window=int(args.threshold)
+# gene_aware_cov_filter=int(args.genecovfilter)
+# gene_aware_count_filter=int(args.genereadfilter)
+# forceBed=bool(args.forcebed)
+
+# bam=args.bam
+# gff=args.gff
+# gene_output=os.path.join(args.output, "gene_aware.tab")
+# unaware_output=os.path.join(args.output, "unaware.tab")
 
 window=10
 gene_aware_cov_filter=0.3
 gene_aware_count_filter=2
 
 bam="/scratch/rx32940/minION/polyA_directRNA/map/genome/bam/Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA_rna_filtered.linear.bam"
-bed=""
 gff="/scratch/rx32940/minION/polyA_cDNA/map/genome/reference/GCF_000007685.1_ASM768v1_genomic.gff"
 gene_output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/input/Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA_rna_filtered.linear.gene_aware.tab"
 unaware_output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/input/Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA_rna_filtered.linear.unaware.tab"
 
 # create bed from bam
 forceBed=True # always create a new bed file
-if bed != "":
-    print('bed file provided, will use input instead of bam file')
-    bed_file=bed
-elif(os.path.isfile(bam.strip(".bam") + ".bed") and forceBed != True):
+if(os.path.isfile(bam.strip(".bam") + ".bed") and forceBed != True):
     print("bed file exist, will use the current bed")
     bed_file=bam.strip(".bam") + ".bed"
 else:
