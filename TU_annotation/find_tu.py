@@ -38,6 +38,7 @@ bam="/scratch/rx32940/minION/polyA_directRNA/map/genome/bam/Q29_Copenhageni_Base
 gff="/scratch/rx32940/minION/polyA_cDNA/map/genome/reference/GCF_000007685.1_ASM768v1_genomic.gff"
 gene_output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/input/Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA_rna_filtered.linear.gene_aware.tab"
 unaware_output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/input/Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA_rna_filtered.linear.unaware.tab"
+merged_output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/input/Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA_rna_filtered.linear.merged.tab"
 
 # create bed from bam
 forceBed=True # always create a new bed file
@@ -67,13 +68,11 @@ chroms_list = [chrom for chrom in chroms if chrom != ""]
 # with structure {chromI: {+:[(start, end)], lags:[(start, end)]}, chromII: {+:[(start, end)], lags:[(start, end)]}}
 all_reads={}
 all_genes={} #dict to keep all gene annotations (positions)
-all_unaware_clusters={} # this is the dict to save all the read can be clustered together without annotation
 pos_cov={}
 for chrom in chroms_list:
     all_reads[chrom]={}
     all_genes[chrom]={}
     pos_cov[chrom]={}
-    all_unaware_clusters[chrom]={}
     # return start and end of each read in a tuple
     all_reads[chrom]["+"] = [(int(read.split('\t')[1]), int(read.split('\t')[2])) for read in bedlist if ("\t+" in read) == True & (chrom in read) == True]
     # lagging strand has end site as start
@@ -83,8 +82,6 @@ for chrom in chroms_list:
     all_genes[chrom]["-"]=[]
     pos_cov[chrom]["+"]={}
     pos_cov[chrom]["-"]={}
-    all_unaware_clusters[chrom]["+"]=[]
-    all_unaware_clusters[chrom]["-"]=[]
 
 # reference genome annotation
 genome_file=gff.strip(".gff") + ".genome.tab"
@@ -136,10 +133,36 @@ def get_overlap_reads(gene,strand,cur_reads_list):
             overlap_read_index.append(cur_read_index)
         # count current index of read
         cur_read_index += 1
-        
     return overlap_read_index
-    
 
+"""
+function to combine tss produced with gene-aware and unaware approach into the same dict
+"""
+def combine_tss(tss_c1, tss_c2):
+    i=0
+    j=0
+    combined_tss=[]
+    
+    while i < len(tss_c1) and j < len(tss_c2):
+        if tss_c1[i][0] < tss_c2[j][0]:
+            combined_tss.append(tss_c1[i])
+            i += 1
+        elif tss_c2[j][0] < tss_c1[i][0]:
+            combined_tss.append(tss_c2[j])
+            j += 1
+        else:
+            combined_tss.append(tss_c1[i])
+            combined_tss.append(tss_c2[j])
+            i += 1
+            j += 1
+    
+    while i < len(tss_c1):
+        combined_tss.append(tss_c1[i])
+        i +=1
+    while j < len(tss_c2):
+        combined_tss.append(tss_c2[j])
+        j +=1
+    return combined_tss
 
 """
 gene_aware TSS identification
@@ -147,8 +170,11 @@ gene_aware TSS identification
 """
 
 with open(gene_output, "w") as go:
+    gene_clusters={}
     for chrom in all_genes.keys():
+        gene_clusters[chrom]={}
         for strand in all_genes[chrom].keys():
+            gene_clusters[chrom][strand]=[]
             all_reads[chrom][strand].sort() # sort all reads based on the start site (for lag strand, is end site)
             all_genes[chrom][strand].sort() # sort all genes based on the start site (for lag strand, is end site)
             for gene in all_genes[chrom][strand]:
@@ -171,7 +197,7 @@ with open(gene_output, "w") as go:
                             cluster_start, cluster_end = get_cluster_pos(cur_cluster, strand)
                             # print(len(cur_cluster))
                             if (len(cur_cluster) >= (total_overlapped_cov * gene_aware_cov_filter)) and len(cur_cluster) >= gene_aware_count_filter:
-                                # print("%s\t%d\t%d\t%s\t%d\t%s\n"%(chrom, cluster_start, cluster_end, gene_id, len(cur_cluster), strand))
+                                gene_clusters[chrom][strand].append((cluster_start, cluster_end, gene_id, len(cur_cluster)))
                                 a=go.write("%s\t%d\t%d\t%s\t%d\t%s\n"%(chrom, cluster_start, cluster_end, gene_id, len(cur_cluster), strand))
                             pre_start = read[0]
                             cur_cluster = [read]
@@ -179,6 +205,7 @@ with open(gene_output, "w") as go:
                     cluster_start, cluster_end = get_cluster_pos(cur_cluster, strand)
                     if (len(cur_cluster) >= (total_overlapped_cov * gene_aware_cov_filter)) and len(cur_cluster) >= gene_aware_count_filter:
                         # print("%s\t%d\t%d\t%s\t%d\t%s\n"%(chrom, cluster_start, cluster_end, gene_id, len(cur_cluster), strand))
+                        gene_clusters[chrom][strand].append((cluster_start, cluster_end, gene_id, len(cur_cluster)))
                         b=go.write("%s\t%d\t%d\t%s\t%d\t%s\n"%(chrom, cluster_start, cluster_end, gene_id, len(cur_cluster), strand))
 
 
@@ -186,7 +213,6 @@ with open(gene_output, "w") as go:
 gene_unaware TSS identification:
     all chroms
     + and lag strand
-    filter: ???
     input:
         dict all_reads{chromI: {+:[(start, end)], lags:[(start, end)]}, chromII: {+:[(start, end)], lags:[(start, end)]}}
     output:
@@ -210,10 +236,13 @@ for pos in open(lag_bam_cov.fn): # lag
 
 with open(unaware_output, "w") as uo:
     # gene unaware clustering
+    all_unaware_clusters={} # this is the dict to save all the read can be clustered together without annotation
     for chrom in all_reads.keys(): # loop through chroms
         # chrom="NC_005823.1"
+        all_unaware_clusters[chrom]={}
         for strand in all_reads[chrom].keys(): # loop through strands # HOW TO HANDLE LAGGING STRAND???????
             # strand="-"
+            all_unaware_clusters[chrom][strand]=[]
             all_reads[chrom][strand].sort() # sort all reads based on the start site (for lag strand, is end site)
             cur_cluster_start_index = 0 # current cluster starts from this read index, reset for every new cluster
             cur_read_index = 0 # will not reset for all reads in the same strand and chrom
@@ -233,18 +262,52 @@ with open(unaware_output, "w") as uo:
                     cluster_start, cluster_end = get_cluster_pos(cur_cluster, strand)
                     if len(cur_cluster) > pos_cov[chrom][strand][cluster_start]:
                         a=uo.write("%s\t%d\t%d\t.\t%d\t%s\t%s\n"%(chrom,cluster_start, cluster_end,len(cur_cluster), strand, "filter=" + str(pos_cov[chrom][strand][cluster_start]))) 
+                        all_unaware_clusters[chrom][strand].append((cluster_start, cluster_end,"unaware",len(cur_cluster)))
                     cur_cluster=[read] # end list reinitiated for the new cluster.
                     pre_start=start
                     cur_cluster_start_index = cur_read_index # the new clusters starts, from the current read 
             cluster_start, cluster_end = get_cluster_pos(cur_cluster, strand)
             if len(cur_cluster) > pos_cov[chrom][strand][cluster_start]:
+                all_unaware_clusters[chrom][strand].append((cluster_start, cluster_end,"unaware",len(cur_cluster)))
                 b=uo.write("%s\t%d\t%d\t.\t%d\t%s\t%s\n"%(chrom,cluster_start, cluster_end,len(cur_cluster), strand, "filter=" + str(pos_cov[chrom][strand][cluster_start]))) 
 
 
 
-    
+
+"""
+combine gene-aware and unaware TSS
+    - TSS within 10bps from two approaches are merged in one
+
+"""
+
+with open(merged_output, "w") as mo:
+    merged_clusters={}
+    for chrom in gene_clusters.keys():
+        merged_clusters[chrom]={}
+        for strand in gene_clusters[chrom].keys():
+            combined_list = combine_tss(gene_clusters[chrom][strand], all_unaware_clusters[chrom][strand])
+            merged_tss=[]
+            pre_tss = combined_list[0]
+            for tss in combined_list[1:]:
+                if tss[0] - pre_tss[0] <= window:
+                    merged_start=pre_tss[0]
+                    merged_end=max([pre_tss[1], tss[1]])
+                    merged_gene=tss[2] if pre_tss[2] == "unaware" else pre_tss[2]
+                    merged_cov=(tss[3]+pre_tss[3])/2
+                    merged_tss.append((merged_start, merged_end, merged_gene, merged_cov))
+                    a=mo.write("%s\t%d\t%d\t%s\t%d\t%s\n"%(chrom,merged_start, merged_end,merged_gene,merged_cov, strand))
+                    pre_tss=(merged_start, merged_end, merged_gene, merged_cov)
+                    
+                else:
+                    merged_tss.append(tss)
+                    a=mo.write("%s\t%d\t%d\t%s\t%d\t%s\n"%(chrom,tss[0], tss[1],tss[2],tss[3], strand))
+                    pre_tss=tss 
+            merged_clusters[chrom][strand]=merged_tss
+            
+
+
         
-    
+
 """"
 TU identification:
 
