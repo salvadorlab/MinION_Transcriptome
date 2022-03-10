@@ -379,9 +379,7 @@ class FindFeature:
 
 def main():
 
-    # bam="/scratch/rx32940/minION/polyA_directRNA/map/genome/bam/Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA_rna_filtered.linear.bam"
-    # gff="/scratch/rx32940/minION/polyA_cDNA/map/genome/reference/GCF_000007685.1_ASM768v1_genomic.gff"
-    # output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/input/"
+
     bam=""
     gff=""
     output=""
