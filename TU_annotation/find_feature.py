@@ -21,8 +21,8 @@ class FindFeature:
             self.bam=bam
             self.gff=gff
             output=os.path.dirname(bam) if output == "" else output
-            sample=os.path.basename(bam).strip(".bam")
-            output_prefix = output + sample
+            self.sample=os.path.basename(bam).strip(".bam")
+            output_prefix = output + self.sample
             self.gene_output=output_prefix + "."+ self.feature +  ".gene_aware.tab"
             self.unaware_output=output_prefix + "."+ self.feature +".unaware.tab" 
             self.merged_output=output_prefix + "."+ self.feature  +  ".merged.tab"
@@ -57,9 +57,9 @@ class FindFeature:
 
         self.bam=args.bam
         self.gff=args.gff
-        sample=os.path.basename(self.bam).strip(".bam")
+        self.sample=os.path.basename(self.bam).strip(".bam")
         
-        output_prefix=os.path.join(args.output,sample) if args.prefix == "" else os.path.join(args.output, args.prefix)
+        output_prefix=os.path.join(args.output,self.sample) if args.prefix == "" else os.path.join(args.output, args.prefix)
         self.gene_output=output_prefix + "."+ self.feature +  ".gene_aware.tab"
         self.unaware_output=output_prefix + "."+ self.feature +".unaware.tab" 
         self.merged_output=output_prefix + "."+ self.feature  +  ".merged.tab"
@@ -105,9 +105,9 @@ class FindFeature:
                 start=2
                 end=1
             # return start and end of each read in a tuple
-            all_reads[chrom]['+'] = [(int(read.split('\t')[start]), int(read.split('\t')[end])) for read in bedlist if ('\t+' in read) == True & (chrom in read) == True]
+            all_reads[chrom]['+'] = [(int(read.split('\t')[start])+1, int(read.split('\t')[end])+1) for read in bedlist if ('\t+' in read) == True & (chrom in read) == True]
             # lagging strand has end site as start
-            all_reads[chrom]['-'] = [(int(read.split('\t')[end]), int(read.split('\t')[start])) for read in bedlist if ('\t-' in read) == True & (chrom in read) == True]
+            all_reads[chrom]['-'] = [(int(read.split('\t')[end])+ 1, int(read.split('\t')[start]) + 1) for read in bedlist if ('\t-' in read) == True & (chrom in read) == True]
         return all_reads
 
     # reference genome annotation
@@ -142,12 +142,14 @@ class FindFeature:
             cur_strand = strand
         if cur_strand == "+":
             start_list=[x[0] for x in read_list]
-            cluster_start = (min(multimode(start_list)) if start_list.count(mode(start_list)) > 1 else min(start_list)) + 1
-            cluster_end = max([x[1] for x in read_list])
+            cluster_start = min(multimode(start_list))  if start_list.count(mode(start_list)) > 1 else min(start_list) 
+            end_list=[x[1] for x in read_list]
+            cluster_end = max(multimode(end_list)) if end_list.count(mode(end_list)) > 1 else max(end_list) 
         else:
             start_list=[x[0] for x in read_list]
             cluster_start = max(multimode(start_list)) if start_list.count(mode(start_list)) > 1 else max(start_list)
-            cluster_end = min([x[1] for x in read_list])
+            end_list=[x[1] for x in read_list]
+            cluster_end = min(multimode(end_list))  if end_list.count(mode(end_list)) > 1 else min(end_list) 
         
         return cluster_start, cluster_end
 
@@ -300,7 +302,7 @@ class FindFeature:
                     cur_cluster = [first_read] # keep all end to a list
                     for read in self.all_reads[chrom][strand][1:]: # start looping from second read
                         start=read[0]
-                        end=read[1]
+                        # end=read[1]
                         cur_read_index += 1
                         if (start - pre_start <= self.window): # if the start sites of the two reads are less than 10
                             cur_cluster.append(read) # save the end sites to a list
@@ -314,7 +316,7 @@ class FindFeature:
                                 all_unaware_clusters[chrom][strand].append((cluster_start, cluster_end,"unaware",len(cur_cluster)))
                             cur_cluster=[read] # end list reinitiated for the new cluster.
                             pre_start=start
-                            cur_cluster_start_index = cur_read_index # the new clusters starts, from the current read 
+                            # cur_cluster_start_index = cur_read_index # the new clusters starts, from the current read 
                     cluster_start, cluster_end = self.__get_cluster_pos(cur_cluster, strand)
                     if len(cur_cluster) > self.pos_cov[chrom][strand][cluster_start]:
                         all_unaware_clusters[chrom][strand].append((cluster_start, cluster_end,"unaware",len(cur_cluster)))
