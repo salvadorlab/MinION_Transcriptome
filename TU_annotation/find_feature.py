@@ -32,7 +32,7 @@ class FindFeature:
         
         
     def parse_args(self):
-        parser=argparse.ArgumentParser(prog="findTU",usage='%(prog)s [TSS|TTS] [options]',description='Arguments to identify Leptospira Transcript TSS:')
+        parser=argparse.ArgumentParser(prog="findFEATURE",usage='%(prog)s [TSS|TTS] [options]',description='Arguments to identify Leptospira Transcript TSS:')
         parser.add_argument('feature',metavar='',type=str,help='specify if TSS or TTS need to be annotated', default="TSS")
         parser.add_argument( "-p",'--prefix',metavar='',type=str,help='prefix of the output file (only prefix), default is input file name', default="")
         parser.add_argument( "-o",'--output',metavar='',type=str,help='output file dir')
