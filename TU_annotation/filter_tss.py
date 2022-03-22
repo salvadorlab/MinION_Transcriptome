@@ -1,5 +1,6 @@
 import os
 import argparse
+from statistics import mode, multimode
 
 
 ####
@@ -45,11 +46,11 @@ with open(tss_file) as tf, open(filter_file, "w") as ff:
             cur_gene= str(cur_gene + ":" + cur_line[2]) if cur_line[2] != cur_gene else cur_gene
         else:
             if strand == "+":
-                min_tss = min(cur_tss_cluster)
-                max_end = max(cur_ends)
+                min_tss = min(multimode(cur_tss_cluster))  if cur_tss_cluster.count(mode(cur_tss_cluster)) > 1 else min(cur_tss_cluster)
+                max_end = max(multimode(cur_ends)) if cur_ends.count(mode(cur_ends)) > 1 else max(cur_ends) 
             else:
-                min_tss = max(cur_tss_cluster)
-                max_end = min(cur_ends)
+                min_tss = max(multimode(cur_tss_cluster))  if cur_tss_cluster.count(mode(cur_tss_cluster)) > 1 else max(cur_tss_cluster)
+                max_end = min(multimode(cur_ends)) if cur_ends.count(mode(cur_ends)) > 1 else min(cur_ends) 
             a=ff.write("%s\t%d\t%d\t%s\t%s\t%d\t%d\n"%(cur_line[0], min_tss,max_end,cur_gene, strand, len(cur_ends),cur_cluster))
             # print("%s\t%d\t%d\t%s\t%s\t%d\t%d\n"%(cur_line[0], min_tss,max_end,cur_gene, strand, len(cur_ends),cur_cluster))
             cur_cluster = int(cur_line[11])
