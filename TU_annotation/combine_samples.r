@@ -7,43 +7,48 @@ tu_path <- args[1] # input
 out_path <- args[2]
 feature <- args[3] # tss or tts
 
-tabs <-list.files(tu_path, pattern=paste0("*.combined_",feature, ".tab"), full.names = TRUE)
+# tu_path <- "/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss"
+# out_path <- "/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss"
+# feature <- "TSS"
 
-raw_tss_dfs <- lapply(tabs, function(x){read.table(x, sep="\t", header = TRUE) %>% select(!end) %>% mutate(sample=basename(x))})
+tabs <-list.files(tu_path, pattern=paste0(toupper(feature), ".merged.tab"), full.names = TRUE)
+
+raw_tss_dfs <- lapply(tabs, function(x){
+  short_file <- basename(x)
+  short_file_name <- unlist(strsplit(short_file, split=".", fixed = TRUE))[1]
+  file <- read.csv(x, sep="\t", header = FALSE) 
+  colnames(file) <- c("chrom", "start", "end", "gene", "cov", "strand")
+  file$sample <- short_file_name 
+  file <- file %>% mutate(sample=
+  case_when(
+    sample =="LIC_NOPOLYA_rna_filtered"~ "LIC-dRNA-nonpolyA",
+    sample =="LIC_POLYA_DRNA_CDNA_rna_filtered" ~ "LIC-dRNA-cDNA-polyA",
+    sample =="LIC_POLYA_rna_filtered" ~ "LIC-dRNA-polyA",
+    sample =="Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA_rna_filtered" ~ "Q29-dRNA-nonpolyA-R1",
+    sample =="Q29_Copenhageni_Basecalled-June_11_2020_Repeat_Direct-RNA_rna_filtered" ~ "Q29-dRNA-nonpolyA-R2",
+    sample =="Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA_rna_filtered" ~ "Q36-dRNA-nonpolyA-R2",
+   sample =="Q36_Copenhageni_Basecalled_May_31_2020_Direct-RNA_rna_filtered" ~ "Q36-dRNA-nonpolyA-R1")
+)
+  file
+  })
 
 
-raw_tss_combined <- Reduce(function(...){full_join(..., all=TRUE,by=c("chrom", "strand", "gene", "start"))},raw_tss_dfs)
+dRNA_df_combined <- do.call(rbind, raw_tss_dfs)
+dRNA_df_combined %>% group_by(chrom, strand) %>% arrange()
 
+dRNA_df_combined$present <- dRNA_df_combined$end
 
-all_samples_combined_raw <- raw_tss_combined %>% pivot_longer(cols=starts_with("sample"), names_to="colname", values_to = "files") %>% 
-subset(!is.na(files))%>%
- mutate(samples = case_when(
-    files == paste0("Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail_Qiagen_rna_filtered.combined_" , feature,".tab") ~ "LIC-cDNA-nonpolyA_Q",
-    files ==paste0("Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail_rna_filtered.combined_" , feature,".tab") ~ "LIC-cDNA-nonpolyA",
-    files ==paste0("Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_PolyATail_rna_filtered.combined_" , feature,".tab")~"LIC-cDNA-polyA",
-    files ==paste0("LIC_NOPOLYA_rna_filtered.combined_" , feature,".tab")~ "LIC-dRNA-nonpolyA",
-    files ==paste0("LIC_POLYA_DRNA_CDNA_rna_filtered.combined_" , feature,".tab") ~ "LIC-dRNA-cDNA-polyA",
-    files ==paste0("LIC_POLYA_rna_filtered.combined_" , feature,".tab") ~ "LIC-dRNA-polyA",
-    files ==paste0("Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA_rna_filtered.combined_" , feature,".tab") ~ "Q29-dRNA-nonpolyA-R1",
-    files ==paste0("Q29_Copenhageni_Basecalled-June_11_2020_Repeat_Direct-RNA_rna_filtered.combined_" , feature,".tab") ~ "Q29-dRNA-nonpolyA-R2",
-    files ==paste0("Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA_rna_filtered.combined_" , feature,".tab") ~ "Q36-dRNA-nonpolyA-R2",
-   files ==paste0("Q36_Copenhageni_Basecalled_May_31_2020_Direct-RNA_rna_filtered.combined_" , feature,".tab") ~ "Q36-dRNA-nonpolyA-R1")) %>%
-  select(-c("colname", "files")) %>% mutate(present = "x")  %>% subset(!is.na(samples))%>% pivot_wider(names_from = samples, values_from = present) %>% arrange(start)
+all_samples_combined_raw <- dRNA_df_combined %>% select(!c(end, cov)) %>% pivot_wider(names_from="sample", values_from = "present") %>% arrange(start)
 
-chromIleadrawcDNA <- all_samples_combined_raw %>% subset(chrom != "NC_005824.1" & strand == "+") %>% select(!starts_with("Q36")) %>% select(c("chrom","start", "strand", "gene", starts_with("LIC-cDNA"))) %>% subset(!(is.na(`LIC-cDNA-nonpolyA_Q`) & is.na(`LIC-cDNA-nonpolyA`) & is.na(`LIC-cDNA-polyA`)))
-chromIlagrawcDNA <- all_samples_combined_raw %>% subset(chrom != "NC_005824.1" & strand == "-") %>% select(!starts_with("Q36")) %>% select(c("chrom","start", "strand", "gene", starts_with("LIC-cDNA")))%>% subset(!(is.na(`LIC-cDNA-nonpolyA_Q`) & is.na(`LIC-cDNA-nonpolyA`) & is.na(`LIC-cDNA-polyA`)))
-chromIIleadrawcDNA <- all_samples_combined_raw %>% subset(chrom != "NC_005823.1" & strand == "+") %>% select(!starts_with("Q36")) %>% select(c("chrom","start", "strand", "gene", starts_with("LIC-cDNA")))%>% subset(!(is.na(`LIC-cDNA-nonpolyA_Q`) & is.na(`LIC-cDNA-nonpolyA`) & is.na(`LIC-cDNA-polyA`)))
-chromIIlagrawcDNA <- all_samples_combined_raw %>% subset(chrom != "NC_005823.1" & strand == "-") %>% select(!starts_with("Q36")) %>% select(c("chrom","start", "strand", "gene", starts_with("LIC-cDNA")))%>% subset(!(is.na(`LIC-cDNA-nonpolyA_Q`) & is.na(`LIC-cDNA-nonpolyA`) & is.na(`LIC-cDNA-polyA`)))
+chromIlead <- all_samples_combined_raw %>% subset(chrom != "NC_005824.1" & strand == "+")  
+chromIlag <- all_samples_combined_raw %>% subset(chrom != "NC_005824.1" & strand == "-")
+chromIIlead <- all_samples_combined_raw %>% subset(chrom != "NC_005823.1" & strand == "+")  
+chromIIlag <- all_samples_combined_raw %>% subset(chrom != "NC_005823.1" & strand == "-")  
 
-chromIleadrawdRNA <- all_samples_combined_raw %>% subset(chrom != "NC_005824.1" & strand == "+") %>% select(!starts_with("Q36")) %>% select(c("chrom","start", "strand", "gene", !starts_with("LIC-cDNA"))) %>% subset(!(is.na(`Q29-dRNA-nonpolyA-R1`) & is.na(`LIC-dRNA-nonpolyA`) & is.na(`Q29-dRNA-nonpolyA-R2`) & is.na(`LIC-dRNA-polyA`)))
-chromIlagrawdRNA <- all_samples_combined_raw %>% subset(chrom != "NC_005824.1" & strand == "-") %>% select(!starts_with("Q36")) %>% select(c("chrom","start", "strand", "gene", !starts_with("LIC-cDNA")))%>% subset(!(is.na(`Q29-dRNA-nonpolyA-R1`) & is.na(`LIC-dRNA-nonpolyA`) & is.na(`Q29-dRNA-nonpolyA-R2`) & is.na(`LIC-dRNA-polyA`)))
-chromIIleadrawdRNA <- all_samples_combined_raw %>% subset(chrom != "NC_005823.1" & strand == "+") %>% select(!starts_with("Q36")) %>% select(c("chrom","start", "strand", "gene", !starts_with("LIC-cDNA")))%>% subset(!(is.na(`Q29-dRNA-nonpolyA-R1`) & is.na(`LIC-dRNA-nonpolyA`) & is.na(`Q29-dRNA-nonpolyA-R2`) & is.na(`LIC-dRNA-polyA`)))
-chromIIlagrawdRNA <- all_samples_combined_raw %>% subset(chrom != "NC_005823.1" & strand == "-") %>% select(!starts_with("Q36")) %>% select(c("chrom","start", "strand", "gene", !starts_with("LIC-cDNA")))%>% subset(!(is.na(`Q29-dRNA-nonpolyA-R1`) & is.na(`LIC-dRNA-nonpolyA`) & is.na(`Q29-dRNA-nonpolyA-R2`) & is.na(`LIC-dRNA-polyA`)))
-
-chrom_strand_df <- c("chromIleadrawcDNA", "chromIlagrawcDNA", "chromIIleadrawcDNA", "chromIIlagrawcDNA", "chromIleadrawdRNA", "chromIlagrawdRNA", "chromIIleadrawdRNA", "chromIIlagrawdRNA")
+chrom_strand_df <- c("chromIlead", "chromIlag", "chromIIlead", "chromIIlag")
 
 for(df in chrom_strand_df){
   # print(get(df))
-  write.csv(get(df), file.path(out_path,paste0(df, "_raw_", toupper(feature), ".csv")), sep=",", quote = FALSE)
-  
+  write.table(get(df), file.path(out_path,paste0(df, ".combined.", toupper(feature), ".tab")), sep="\t", quote = FALSE, row.names=FALSE)
+ 
 }

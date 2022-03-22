@@ -41,7 +41,7 @@ class FindFeature:
         parser.add_argument( "-F",'--forcebed',metavar='',type=str,help='new bed file will always generate from bam in the same dir', default=True)
         parser.add_argument( "-t",'--threshold',metavar='',type=str,help='definition of read positions to classify in a cluster, default is within 10bps', default=10)
         parser.add_argument( "-cf",'--genecovfilter',metavar='',type=str,help='proportion of total read coverage needed in a read cluster to keep the TSS, default is 0.3', default=0.3)
-        parser.add_argument( "-rf",'--genereadfilter',metavar='',type=str,help='number of reads needed in a read cluster to keep the TSS, default is 2 reads', default=2)
+        parser.add_argument( "-rf",'--genereadfilter',metavar='',type=str,help='number of reads needed in a read cluster to keep the TSS, default is 1 reads', default=1)
         args = parser.parse_args()
 
         self.feature=args.feature
@@ -101,13 +101,17 @@ class FindFeature:
             if self.feature == "TSS": # if detecting TTS, read end for + strand will be clustered, read start for - strand will be clustered
                 start=1
                 end=2
+                # return start and end of each read in a tuple
+                all_reads[chrom]['+'] = [(int(read.split('\t')[start])+1, int(read.split('\t')[end])) for read in bedlist if ('\t+' in read) == True & (chrom in read) == True]
+                # lagging strand has end site as start
+                all_reads[chrom]['-'] = [(int(read.split('\t')[end]), int(read.split('\t')[start])+1) for read in bedlist if ('\t-' in read) == True & (chrom in read) == True]
             else: # if detecting tts, reads mapped to lead strand will be treated as reads mapped in the lagging strand in the tss analysis
                 start=2
                 end=1
-            # return start and end of each read in a tuple
-            all_reads[chrom]['+'] = [(int(read.split('\t')[start])+1, int(read.split('\t')[end])+1) for read in bedlist if ('\t+' in read) == True & (chrom in read) == True]
-            # lagging strand has end site as start
-            all_reads[chrom]['-'] = [(int(read.split('\t')[end])+ 1, int(read.split('\t')[start]) + 1) for read in bedlist if ('\t-' in read) == True & (chrom in read) == True]
+                # return start and end of each read in a tuple
+                all_reads[chrom]['+'] = [(int(read.split('\t')[start]), int(read.split('\t')[end]) + 1) for read in bedlist if ('\t+' in read) == True & (chrom in read) == True]
+                # lagging strand has end site as start
+                all_reads[chrom]['-'] = [(int(read.split('\t')[end]) + 1, int(read.split('\t')[start])) for read in bedlist if ('\t-' in read) == True & (chrom in read) == True]
         return all_reads
 
     # reference genome annotation

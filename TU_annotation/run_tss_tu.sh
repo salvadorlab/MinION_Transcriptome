@@ -26,7 +26,7 @@ do
 
 sample=$(basename $bam '.linear.bam')
 header="#!/bin/bash\n#SBATCH --partition=batch\n\
-#SBATCH --job-name=$sample\n\
+#SBATCH --job-name=${sample}\n\
 #SBATCH --ntasks=1\n\
 #SBATCH --cpus-per-task=1\n\
 #SBATCH --time=100:00:00\n\
@@ -51,3 +51,54 @@ sbatch $code_path/sub.sh
 wait
 done
 
+#####################################################################
+### combine features from all samples together
+#####################################################################
+ml R/4.1.3-foss-2020b
+Rscript $code_path/combine_samples.r $output/tss $output/tss tss
+
+#####################################################################
+### cluster TSS from all samples
+#####################################################################
+
+# for i in {0..100..10};
+# do
+# for com in $output/tss/chrom*.combined.TSS.tab;
+# do
+# sample=$(basename $com '.combined.TSS.tab')
+# # python $code_path/cluster_tss.py -i $com -o $output/tss/$sample.clustered.TSS.tab -c 1 # 10 bp cluster
+# # python $code_path/cluster_tss.py -i $com -o $output/tss/$sample.clustered20.TSS.tab -c 1 -t 20 # 20 bp cluster
+# python $code_path/cluster_tss.py -i $com -o $output/tss/$sample.clustered$i.TSS.tab -c 1 -t $i # 30 bp cluster
+# echo $sample
+# done
+# done
+
+#####################################################################
+### Filter TSS from each cluster
+### one TSS taken from each cluster (min on lead, max on lag)
+### get the furthest end of each cluster (max on lead, min on lag)
+#####################################################################
+
+### based on overlapping size between all samples, TSS within 20bps were used as threshold to be seen as the same tss
+for chrom in $output/tss/*.clustered20.TSS.tab;
+do
+
+sample=$(basename $chrom '.clustered20.TSS.tab')
+strand_text=$(echo $sample | cut -d"l" -f 2) # use "l" as deliminter and take second string
+echo $sample
+
+if [ "$strand_text" = "ead" ] # if lead
+then
+strand="+"
+else
+strand="-"
+fi
+
+echo $strand
+
+python $code_path/filter_tss.py -i $output/tss/$sample.clustered20.TSS.tab -o $output/tss/$sample.filtered20.TSS.tab -s $strand
+done
+
+#####################################################################
+### annotate TSS based on gTSS (pTSS & sTSS) iTSS asTSS oTSS
+#####################################################################
