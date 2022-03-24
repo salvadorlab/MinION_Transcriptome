@@ -36,7 +36,7 @@ raw_tss_dfs <- lapply(tabs, function(x){
 dRNA_df_combined <- do.call(rbind, raw_tss_dfs)
 dRNA_df_combined %>% group_by(chrom, strand) %>% arrange()
 
-dRNA_df_combined$present <- dRNA_df_combined$end
+dRNA_df_combined$present <- paste(dRNA_df_combined$end, dRNA_df_combined$cov, sep=";")
 
 all_samples_combined_raw <- dRNA_df_combined %>% select(!c(end, cov)) %>% pivot_wider(names_from="sample", values_from = "present") %>% arrange(start)
 

@@ -61,17 +61,17 @@ Rscript $code_path/combine_samples.r $output/tss $output/tss tss
 ### cluster TSS from all samples
 #####################################################################
 
-# for i in {0..100..10};
-# do
-# for com in $output/tss/chrom*.combined.TSS.tab;
-# do
-# sample=$(basename $com '.combined.TSS.tab')
-# # python $code_path/cluster_tss.py -i $com -o $output/tss/$sample.clustered.TSS.tab -c 1 # 10 bp cluster
-# # python $code_path/cluster_tss.py -i $com -o $output/tss/$sample.clustered20.TSS.tab -c 1 -t 20 # 20 bp cluster
-# python $code_path/cluster_tss.py -i $com -o $output/tss/$sample.clustered$i.TSS.tab -c 1 -t $i # 30 bp cluster
-# echo $sample
-# done
-# done
+for i in {0..100..10};
+do
+for com in $output/tss/chrom*.combined.TSS.tab;
+do
+sample=$(basename $com '.combined.TSS.tab')
+# python $code_path/cluster_tss.py -i $com -o $output/tss/$sample.clustered.TSS.tab -c 1 # 10 bp cluster
+# python $code_path/cluster_tss.py -i $com -o $output/tss/$sample.clustered20.TSS.tab -c 1 -t 20 # 20 bp cluster
+python $code_path/cluster_tss.py -i $com -o $output/tss/$sample.clustered$i.TSS.tab -c 1 -t $i # 30 bp cluster
+echo $sample
+done
+done
 
 #####################################################################
 ### Filter TSS from each cluster
@@ -102,3 +102,7 @@ done
 #####################################################################
 ### annotate TSS based on gTSS (pTSS & sTSS) iTSS asTSS oTSS
 #####################################################################
+
+cat $output/tss/chrom*.filtered20.TSS.tab | grep "chrom" -v  > $output/tss/combined.filtered20.TSS.tab 
+
+python $code_path/annotate_tss.py -i $output/tss/combined.filtered20.TSS.tab -g $REF/GCF_000007685.1_ASM768v1_genomic.gff -o $output/tss/combined.filtered20.TSS.anot.tab

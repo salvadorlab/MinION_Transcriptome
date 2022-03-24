@@ -28,12 +28,13 @@ strand=args.strand
 
 with open(tss_file) as tf, open(filter_file, "w") as ff:
     header=tf.readline().strip("\n")
-    a=ff.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\n"%("chrom", "start", "end", "gene", "strand", "numSamples","clusters"))
+    a=ff.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"%("chrom", "start", "end", "gene", "cov","strand", "numSamples","clusters"))
     cur_line=tf.readline().strip("\n").split("\t")
     cur_cluster = int(cur_line[11])
     cur_tss=int(cur_line[1])
     cur_tss_cluster=[cur_tss]
-    cur_ends=[int(x) for x in cur_line[4:11] if x != "NA"]
+    cur_ends=[int(x.split(";")[0]) for x in cur_line[4:11] if x != "NA"]
+    cur_cov=[int(x.split(";")[1]) for x in cur_line[4:11] if x != "NA"]
     cur_gene=cur_line[2]
     num_in_cluster = 0
     for line in tf:
@@ -43,21 +44,25 @@ with open(tss_file) as tf, open(filter_file, "w") as ff:
             num_in_cluster += 1
             cur_tss=int(cur_line[1])
             cur_tss_cluster.append(int(cur_tss))
-            cur_ends= cur_ends+ [int(x) for x in cur_line[4:11] if x != "NA"]
+            cur_ends= cur_ends+ [int(x.split(";")[0])for x in cur_line[4:11] if x != "NA"]
+            cur_cov=cur_cov + [int(x.split(";")[1]) for x in cur_line[4:11] if x != "NA"]
             # print(cur_ends)
             cur_gene= str(cur_gene + ":" + cur_line[2]) if cur_line[2] != cur_gene else cur_gene
         else:
             if strand == "+":
                 min_tss = min(multimode(cur_tss_cluster))  if cur_tss_cluster.count(mode(cur_tss_cluster)) > 1 else min(cur_tss_cluster)
                 max_end = mean(cur_ends)
+                mean_cov=mean(cur_cov)
             else:
                 min_tss = max(multimode(cur_tss_cluster))  if cur_tss_cluster.count(mode(cur_tss_cluster)) > 1 else max(cur_tss_cluster)
                 max_end = mean(cur_ends)
-            a=ff.write("%s\t%d\t%d\t%s\t%s\t%d\t%d\n"%(cur_line[0], min_tss,max_end,cur_gene, strand, len(cur_ends),cur_cluster))
+                mean_cov=mean(cur_cov)
+            a=ff.write("%s\t%d\t%d\t%s\t%d\t%s\t%d\t%d\n"%(cur_line[0], min_tss,max_end,cur_gene, mean_cov,strand, len(cur_ends),cur_cluster))
             # print("%s\t%d\t%d\t%s\t%s\t%d\t%d\n"%(cur_line[0], min_tss,max_end,cur_gene, strand, len(cur_ends),cur_cluster))
             cur_cluster = int(cur_line[11])
             cur_tss=int(cur_line[1])
             cur_tss_cluster = [cur_tss]
-            cur_ends=[int(x) for x in cur_line[4:11] if x != "NA"]
+            cur_ends=[int(x.split(";")[0]) for x in cur_line[4:11] if x != "NA"]
+            cur_cov=[int(x.split(";")[1]) for x in cur_line[4:11] if x != "NA"]
             cur_gene=cur_line[2]
             num_in_cluster = 0
