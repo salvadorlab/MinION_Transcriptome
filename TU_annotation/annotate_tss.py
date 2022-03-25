@@ -13,7 +13,7 @@ filter_tss=args.input
 gff=args.gff
 output=args.output
 
-# filter_tss="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/chromIlead.filtered20.TSS.tab"
+# filter_tss="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/chromIlag.filtered20.TSS.tab"
 # gff="/scratch/rx32940/minION/polyA_cDNA/map/genome/reference/GCF_000007685.1_ASM768v1_genomic.gff"
 # output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/chromIlead.annotate20.TSS.tab"
 
@@ -67,11 +67,11 @@ def annotate_tss(all_genes, all_tss):
                     for gene in all_genes[chrom][strand]:
                         if tss > gene[1]:
                             continue
-                        elif tss >= gene[0]:
-                            tss_anot[chrom][strand].append((*item, "iTSS", gene[2]))
-                            break
                         elif gene[0] - tss <=300:
                             tss_anot[chrom][strand].append((*item, "gTSS", gene[2]))
+                            break
+                        elif tss >= gene[0]:
+                            tss_anot[chrom][strand].append((*item, "iTSS", gene[2]))
                             break
                         else:
                             tss_anot[chrom][strand].append((*item, "oTSS", "."))
@@ -80,17 +80,18 @@ def annotate_tss(all_genes, all_tss):
                 for item in all_tss[chrom][strand]:
                     tss=int(item[0])
                     for gene in all_genes[chrom][strand]:
-                        if tss < gene[0]:
-                            continue
-                        elif tss <= gene[1]:
-                            tss_anot[chrom][strand].append((*item, "iTSS", gene[2]))
-                            break
-                        elif tss - gene[1] <= 300:
-                            tss_anot[chrom][strand].append((*item, "asTSS", "."))
-                            break
-                        else:
+                        if (tss < gene[0]):
                             tss_anot[chrom][strand].append((*item, "oTSS", "."))
                             break
+                        elif (tss - gene[1] <= 100) and (tss - gene[1] >=0):
+                            tss_anot[chrom][strand].append((*item, "asTSS", gene[2]))
+                            break
+                        elif tss>= gene[0] and tss <= gene[1]:
+                            tss_anot[chrom][strand].append((*item, "asTSS", gene[2]))
+                            break
+                        else:
+                            continue
+
         return tss_anot
 
 

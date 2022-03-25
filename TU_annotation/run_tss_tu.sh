@@ -105,4 +105,7 @@ done
 
 cat $output/tss/chrom*.filtered20.TSS.tab | grep "chrom" -v  > $output/tss/combined.filtered20.TSS.tab 
 
-python $code_path/annotate_tss.py -i $output/tss/combined.filtered20.TSS.tab -g $REF/GCF_000007685.1_ASM768v1_genomic.gff -o $output/tss/combined.filtered20.TSS.anot.tab
+python $code_path/annotate_tss.py \
+-i $output/tss/combined.filtered20.TSS.tab \
+-g $REF/GCF_000007685.1_ASM768v1_genomic.gff \
+-o $output/tss/combined.filtered20.TSS.anot.tab
