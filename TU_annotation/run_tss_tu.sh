@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=batch
-#SBATCH --job-name=batch
+#SBATCH --job-name=find_tss
 #SBATCH --ntasks=1                    	
 #SBATCH --cpus-per-task=1            
 #SBATCH --time=100:00:00
@@ -37,10 +37,11 @@ header="#!/bin/bash\n#SBATCH --partition=batch\n\
 #SBATCH --mail-type=ALL\n"
 
 echo -e $header > $code_path/sub.sh
+echo -e "source activate tu_annotation\n" >> $code_path/sub.sh
 
 echo -e "echo \"Transcritption analysis for $sample\"" >> $code_path/sub.sh
 
-echo -e "python $code_path/find_feature.py TSS -b $bam -a $REF/GCF_000007685.1_ASM768v1_genomic.gff -o $output/tss\n" >> $code_path/sub.sh
+echo -e "python $code_path/find_feature.py TSS -b $bam -a $REF/GCF_000007685.1_ASM768v1_genomic.gff -o $output/tss -uf 0.9 \n" >> $code_path/sub.sh
 
 echo -e "python $code_path/find_feature.py TTS -b $bam -a $REF/GCF_000007685.1_ASM768v1_genomic.gff -o $output/tts\n" >> $code_path/sub.sh
 
@@ -55,20 +56,34 @@ done
 ### combine features from all samples together
 #####################################################################
 ml R/4.1.3-foss-2020b
-Rscript $code_path/combine_samples.r $output/tss $output/tss tss
+
+code_path="/home/rx32940/github/MinION_Transcriptome/TU_annotation"
+bam_path="/scratch/rx32940/minION/polyA_directRNA/map/genome/bam"
+output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output"
+REF="/scratch/rx32940/minION/polyA_cDNA/map/genome/reference"
+
+mkdir -p $output/tss/Q29 $output/tss/Q36 $output/tss/combined
+
+mv $output/tss/Q36_Copen* $output/tss/Q36 
+
+mv $output/tss/*tab $output/tss/Q29
+
+Rscript $code_path/combine_samples.r $output/tss $output/tss/combined tss
 
 #####################################################################
 ### cluster TSS from all samples
 #####################################################################
 
+
+mkdir -p $output/tss/combined/clustered/
 for i in {0..100..10};
 do
-for com in $output/tss/chrom*.combined.TSS.tab;
+for com in $output/tss/combined/chrom*.combined.TSS.tab;
 do
 sample=$(basename $com '.combined.TSS.tab')
 # python $code_path/cluster_tss.py -i $com -o $output/tss/$sample.clustered.TSS.tab -c 1 # 10 bp cluster
 # python $code_path/cluster_tss.py -i $com -o $output/tss/$sample.clustered20.TSS.tab -c 1 -t 20 # 20 bp cluster
-python $code_path/cluster_tss.py -i $com -o $output/tss/$sample.clustered$i.TSS.tab -c 1 -t $i # 30 bp cluster
+python $code_path/cluster_tss.py -i $com -o $output/tss/combined/clustered/$sample.clustered$i.TSS.tab -c 1 -t $i # 30 bp cluster
 echo $sample
 done
 done
@@ -80,7 +95,7 @@ done
 #####################################################################
 
 ### based on overlapping size between all samples, TSS within 20bps were used as threshold to be seen as the same tss
-for chrom in $output/tss/*.clustered20.TSS.tab;
+for chrom in $output/tss/combined/clustered/*.clustered20.TSS.tab;
 do
 
 sample=$(basename $chrom '.clustered20.TSS.tab')
@@ -96,16 +111,21 @@ fi
 
 echo $strand
 
-python $code_path/filter_tss.py -i $output/tss/$sample.clustered20.TSS.tab -o $output/tss/$sample.filtered20.TSS.tab -s $strand
+python $code_path/filter_tss.py -i $output/tss/combined/clustered/$sample.clustered20.TSS.tab -o $output/tss/combined/filtered/$sample.filtered20.TSS.tab -s $strand
 done
 
 #####################################################################
 ### annotate TSS based on gTSS (pTSS & sTSS) iTSS asTSS oTSS
 #####################################################################
 
-cat $output/tss/chrom*.filtered20.TSS.tab | grep "chrom" -v  > $output/tss/combined.filtered20.TSS.tab 
+source activate tu_annotation
+cat $output/tss/combined/filtered/chrom*.filtered20.TSS.tab | grep "chrom" -v  > $output/tss/combined/filtered/combined.filtered20.TSS.tab 
+
+cat $output/tss/combined/clustered/chrom*.clustered20.TSS.tab | grep "chrom" | head -n 1  >$output/tss/combined/clustered/combined.clustered20.TSS.tab 
+cat $output/tss/combined/clustered/chrom*.clustered20.TSS.tab | grep "chrom" -v  >>$output/tss/combined/clustered/combined.clustered20.TSS.tab 
 
 python $code_path/annotate_tss.py \
--i $output/tss/combined.filtered20.TSS.tab \
+-i $output/tss/combined/filtered/combined.filtered20.TSS.tab \
 -g $REF/GCF_000007685.1_ASM768v1_genomic.gff \
--o $output/tss/combined.filtered20.TSS.anot.tab
+-o $output/tss/combined/filtered/combined.filtered20.TSS.anot.tab \
+-s $output/tss/combined/clustered/combined.clustered20.TSS.tab 

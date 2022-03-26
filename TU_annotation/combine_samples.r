@@ -11,7 +11,7 @@ feature <- args[3] # tss or tts
 # out_path <- "/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss"
 # feature <- "TSS"
 
-tabs <-list.files(tu_path, pattern=paste0(toupper(feature), ".merged.tab"), full.names = TRUE)
+tabs <-list.files(tu_path, pattern=paste0(toupper(feature), ".merged.tab"), full.names = TRUE, recursive=TRUE)
 
 raw_tss_dfs <- lapply(tabs, function(x){
   short_file <- basename(x)

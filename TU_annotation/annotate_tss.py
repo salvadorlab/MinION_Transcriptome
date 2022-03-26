@@ -6,16 +6,19 @@ import argparse
 parser=argparse.ArgumentParser(prog="tss_anot",usage='%(prog)s[options]',description='anot each tss as gTSS (pTSS/sTSS); iTSS; asTSS; oTSS:')
 parser.add_argument('--input', "-i",type=str,help='TSS files')
 parser.add_argument('--gff', "-g",type=str,help='reference gene annotation')
+parser.add_argument('--sample', "-s",type=str,help='(optional) this is the combined and clustered file produced using combine_samples.r and cluster_tss.py, will show which sample each tss is present in', default="")
 parser.add_argument('--output', "-o",type=str,help='output file')
 args = parser.parse_args()
 
 filter_tss=args.input
 gff=args.gff
 output=args.output
+sample=args.sample
 
-# filter_tss="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/chromIlag.filtered20.TSS.tab"
+# filter_tss="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/combined/filtered/chromIlag.filtered20.TSS.tab"
 # gff="/scratch/rx32940/minION/polyA_cDNA/map/genome/reference/GCF_000007685.1_ASM768v1_genomic.gff"
-# output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/chromIlead.annotate20.TSS.tab"
+# output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/combined/filtered/chromIlead.annotate20.TSS.tab"
+# sample="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/combined/clustered/combined.clustered20.TSS.tab"
 
 
 # put all reads in a dict 
@@ -50,7 +53,7 @@ def get_tss(all_genes, filter_tss):
     with open(filter_tss) as ft:
         for line in ft.readlines()[1:]:
             line_list=line.strip('\n').split('\t')
-            all_tss[line_list[0]][line_list[5]].append((int(line_list[1]), int(line_list[2]), line_list[3],int(line_list[4]),int(line_list[6])))
+            all_tss[line_list[0]][line_list[5]].append((int(line_list[1]), int(line_list[2]), line_list[3],int(line_list[4]),int(line_list[6]), int(line_list[7])))
     return all_tss
 
 def annotate_tss(all_genes, all_tss):
@@ -91,27 +94,31 @@ def annotate_tss(all_genes, all_tss):
                             break
                         else:
                             continue
+    return tss_anot
 
-        return tss_anot
-
+    
 
 def annotate_gTSS(tss_anot):
-    annotated_df=pd.DataFrame(columns=["start","end", "geneFrom", "cov", "numSamples", "tss_type", "tssGene", "chrom", "strand"])
+    annotated_df=pd.DataFrame(columns=["start","end", "geneFrom", "cov", "numSamples", "clusters", "tss_type", "tssGene","chrom", "strand"])
     for chrom in tss_anot.keys():
         for strand in tss_anot[chrom].keys():
-            cur_df = pd.DataFrame(tss_anot[chrom][strand], columns=["start","end", "geneFrom", "cov", "numSamples", "tss_type", "tssGene"])
+            cur_df = pd.DataFrame(tss_anot[chrom][strand], columns=["start","end", "geneFrom", "cov", "numSamples", "clusters", "tss_type", "tssGene"])
             cur_df["chrom"]=chrom
             cur_df["strand"]=strand
             annotated_df = pd.concat([annotated_df, cur_df], ignore_index=True)
     annotated_df.loc[annotated_df["tss_type"] == "gTSS", "max_cov"]=annotated_df.loc[annotated_df["tss_type"] == "gTSS"].groupby(['tssGene'])['cov'].transform(max)
     annotated_df.loc[annotated_df["tss_type"] == "gTSS", "gTSS_anot"]=annotated_df.loc[annotated_df["tss_type"] == "gTSS"].apply(lambda x: "pTSS" if x["cov"] == x["max_cov"] else "sTSS",axis=1)
-    return annotated_df
-
+    annotated_df = annotated_df[["chrom","start","end","tss_type","cov", "strand","gTSS_anot" ,"tssGene", "numSamples", "geneFrom", "max_cov", 'clusters']]
+    if sample == "":
+        return annotated_df
+    else: 
+        sample_df=pd.read_csv(sample, sep="\t")
+        return sample_df.merge(annotated_df,  on=["chrom", "strand", "clusters"])
 
 all_genes=get_genes(gff) 
 all_tss=get_tss(all_genes, filter_tss)
 tss_anot=annotate_tss(all_genes, all_tss)
-anot_df = annotate_gTSS(tss_anot)[["chrom","start","end","tss_type","cov", "strand","gTSS_anot" ,"tssGene", "numSamples", "geneFrom", "max_cov"]]
+anot_df = annotate_gTSS(tss_anot)
 
 anot_df.to_csv(output, sep="\t", index=False)
             

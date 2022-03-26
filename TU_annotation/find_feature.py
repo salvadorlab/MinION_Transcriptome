@@ -5,7 +5,7 @@ import argparse
 from statistics import mode, multimode
 
 class FindFeature:
-    def __init__(self, feature="TSS", window = 10, gene_aware_cov_filter = 0.3, gene_aware_count_filter =2, unawarecovfilter =1,forceBed = True, bam="", \
+    def __init__(self, feature="TSS", window = 10, gene_aware_cov_filter = 0.3, gene_aware_count_filter =1, unawarecovfilter =1,unawarecountfilter =2,forceBed = True, bam="", \
         gff="", output=""):
         if bam == "" or gff == "":
             self.parse_args()
@@ -18,6 +18,7 @@ class FindFeature:
             self.gene_aware_cov_filter=gene_aware_cov_filter
             self.gene_aware_count_filter=gene_aware_count_filter
             self.unaware_cov_threshold=unawarecovfilter
+            self.unaware_count_threshold = unawarecountfilter
             self.forceBed=forceBed
             self.bam=bam
             self.gff=gff
@@ -42,8 +43,9 @@ class FindFeature:
         parser.add_argument( "-F",'--forcebed',metavar='',type=str,help='new bed file will always generate from bam in the same dir', default=True)
         parser.add_argument( "-t",'--threshold',metavar='',type=str,help='definition of read positions to classify in a cluster, default is within 10bps', default=10)
         parser.add_argument( "-cf",'--genecovfilter',metavar='',type=str,help='proportion of total read coverage needed in a read cluster to keep the TSS, default is 0.3', default=0.3)
-        parser.add_argument( "-rf",'--genereadfilter',metavar='',type=str,help='number of reads needed in a read cluster to keep the TSS, default is 1 reads', default=1)
+        parser.add_argument( "-rf",'--genereadfilter',metavar='',type=str,help='number of reads needed in a gene-aware cluster to keep the TSS, default is 1 reads', default=1)
         parser.add_argument( "-uf",'--unawarecovfilter',metavar='',type=str,help='proportion of total read coverage at the position to keep the unaware TSS, default is 1', default=1)
+        parser.add_argument( "-uc",'--unawarecountfilter',metavar='',type=str,help='number of reads needed in a unaware cluster to keep the TSS,  default is 2', default=2)
         args = parser.parse_args()
 
         self.feature=args.feature
@@ -56,6 +58,7 @@ class FindFeature:
         self.gene_aware_cov_filter=float(args.genecovfilter)
         self.gene_aware_count_filter=int(args.genereadfilter)
         self.unaware_cov_threshold =float(args.unawarecovfilter)
+        self.unaware_count_threshold =int(args.unawarecountfilter)
         self.forceBed=bool(args.forcebed)
 
         self.bam=args.bam
@@ -319,16 +322,17 @@ class FindFeature:
                             # also with size of the cluster
                             cluster_start, cluster_end = self.__get_cluster_pos(cur_cluster, strand)
                             cov_filter=self.pos_cov[chrom][strand][cluster_start] * self.unaware_cov_threshold
-                            if len(cur_cluster) > (cov_filter):
+                            if (len(cur_cluster) > (cov_filter)) and (len(cur_cluster) >= self.unaware_count_threshold):
                                 a=uo.write("%s\t%d\t%d\t.\t%d\t%s\t%s\n"%(chrom,cluster_start, cluster_end,len(cur_cluster), strand, "filter=" + str(cov_filter))) 
                                 all_unaware_clusters[chrom][strand].append((cluster_start, cluster_end,"unaware",len(cur_cluster)))
                             cur_cluster=[read] # end list reinitiated for the new cluster.
                             pre_start=start
                             # cur_cluster_start_index = cur_read_index # the new clusters starts, from the current read 
                     cluster_start, cluster_end = self.__get_cluster_pos(cur_cluster, strand)
-                    if len(cur_cluster) > self.pos_cov[chrom][strand][cluster_start]:
+                    cov_filter=self.pos_cov[chrom][strand][cluster_start] * self.unaware_cov_threshold
+                    if (len(cur_cluster) > (cov_filter)) and (len(cur_cluster) >= self.unaware_count_threshold):
                         all_unaware_clusters[chrom][strand].append((cluster_start, cluster_end,"unaware",len(cur_cluster)))
-                        b=uo.write("%s\t%d\t%d\t.\t%d\t%s\t%s\n"%(chrom,cluster_start, cluster_end,len(cur_cluster), strand, "filter=" + str(self.pos_cov[chrom][strand][cluster_start]))) 
+                        b=uo.write("%s\t%d\t%d\t.\t%d\t%s\t%s\n"%(chrom,cluster_start, cluster_end,len(cur_cluster), strand, "filter=" + str(cov_filter))) 
             return all_unaware_clusters
 
 
@@ -381,10 +385,8 @@ class FindFeature:
                 number_features[chrom][strand]= len(merged_clusters[chrom][strand])
         print("finding %s in the current alignment:\nnew bed file generated from bam:%r\nthrehold:%d\nGene aware coverage filter:%f\n"\
     %(self.feature,self.forceBed, self.window, self.gene_aware_cov_filter))
-        print( "number of %s identified from each chrom and strand:\n %s "%(self.feature,str(number_features)))
+        print( "number of %s identified from each chrom and strand:\n %s \n\n"%(self.feature,str(number_features)))
         return number_features
-
-
 
 
 def main():
