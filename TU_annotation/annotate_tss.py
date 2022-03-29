@@ -15,7 +15,7 @@ gff=args.gff
 output=args.output
 sample=args.sample
 
-# filter_tss="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/combined/filtered/chromIlag.filtered20.TSS.tab"
+# filter_tss="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/combined/filtered/combined.filtered20.TSS.tab"
 # gff="/scratch/rx32940/minION/polyA_cDNA/map/genome/reference/GCF_000007685.1_ASM768v1_genomic.gff"
 # output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/combined/filtered/chromIlead.annotate20.TSS.tab"
 # sample="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/combined/clustered/combined.clustered20.TSS.tab"
@@ -40,7 +40,7 @@ def get_genes(gff):
                 gene_id=gene_info["ID=" in gene_info].split("-")[1]
                 chrom=line_list[0]
                 strand=line_list[6]
-                all_genes[chrom][strand].append((int(line_list[3]), int(line_list[4]), gene_id))
+                all_genes[chrom][strand].append((int(line_list[3]), int(line_list[4]), gene_id))       
     return all_genes
  
 def get_tss(all_genes, filter_tss):
@@ -56,44 +56,68 @@ def get_tss(all_genes, filter_tss):
             all_tss[line_list[0]][line_list[5]].append((int(line_list[1]), int(line_list[2]), line_list[3],int(line_list[4]),int(line_list[6]), int(line_list[7])))
     return all_tss
 
+
+def get_tss_anot(all_genes, strand, item):
+    tss=int(item[0])
+     # each tss loop through all genes, both lead and lag
+    for gchrom in all_genes.keys():
+        for gene in all_genes[gchrom][strand]:
+            if strand == "+": # on lead strand
+                if tss > gene[1]:
+                    continue
+                elif gene[0] - tss <=300:
+                    return (*item, "gTSS", gene[2])
+                elif tss >= gene[0]:
+                    return (*item, "iTSS", gene[2])
+                else:
+                    break
+            else: # on lag strand
+                if (tss < gene[0]):
+                    break
+                elif (tss - gene[1] <= 300) and (tss - gene[1] >=0):
+                    return (*item, "gTSS", gene[2])
+                elif tss>= gene[0] and tss <= gene[1]:
+                    return (*item, "iTSS", gene[2])
+                else:
+                    continue
+    if strand == "+":
+        ostrand = "-"
+    else:
+        ostrand = "+"
+    for gchrom in all_genes.keys():
+        for gene in all_genes[gchrom][ostrand]:
+            if ostrand == "+":
+                if tss > gene[1]:
+                    continue
+                elif (gene[0] - tss <= 100):
+                    return (*item, "asTSS", gene[2])
+                elif tss>= gene[0] and tss <= gene[1]:
+                    return (*item, "asTSS", gene[2])
+                else:
+                    return (*item, "oTSS", ".")
+            else:
+                if (tss < gene[0]):
+                    return (*item, "oTSS", gene[2])
+                elif (tss -gene[1] <= 100) and (tss -gene[1] >=0):
+                    return (*item, "asTSS", gene[2])
+                elif tss>= gene[0] and tss <= gene[1]:
+                    return (*item, "asTSS", gene[2])
+                else:
+                    continue
+    return (*item, "oTSS", ".")
+
 def annotate_tss(all_genes, all_tss):
     all_genes=all_genes
     all_tss=all_tss
     tss_anot={}
+    # loop through tss to get annotated
     for chrom in all_tss.keys():
         tss_anot[chrom]={}
         for strand in all_tss[chrom].keys():
             tss_anot[chrom][strand]=[]
-            if strand == "+":
-                for item in all_tss[chrom][strand]:
-                    tss=int(item[0])
-                    for gene in all_genes[chrom][strand]:
-                        if tss > gene[1]:
-                            continue
-                        elif gene[0] - tss <=300:
-                            tss_anot[chrom][strand].append((*item, "gTSS", gene[2]))
-                            break
-                        elif tss >= gene[0]:
-                            tss_anot[chrom][strand].append((*item, "iTSS", gene[2]))
-                            break
-                        else:
-                            tss_anot[chrom][strand].append((*item, "oTSS", "."))
-                            break
-            else:
-                for item in all_tss[chrom][strand]:
-                    tss=int(item[0])
-                    for gene in all_genes[chrom][strand]:
-                        if (tss < gene[0]):
-                            tss_anot[chrom][strand].append((*item, "oTSS", "."))
-                            break
-                        elif (tss - gene[1] <= 100) and (tss - gene[1] >=0):
-                            tss_anot[chrom][strand].append((*item, "asTSS", gene[2]))
-                            break
-                        elif tss>= gene[0] and tss <= gene[1]:
-                            tss_anot[chrom][strand].append((*item, "asTSS", gene[2]))
-                            break
-                        else:
-                            continue
+            for item in all_tss[chrom][strand]:
+                tss_anot[chrom][strand].append(get_tss_anot(all_genes, strand, item, ))
+
     return tss_anot
 
     
@@ -110,10 +134,10 @@ def annotate_gTSS(tss_anot):
     annotated_df.loc[annotated_df["tss_type"] == "gTSS", "gTSS_anot"]=annotated_df.loc[annotated_df["tss_type"] == "gTSS"].apply(lambda x: "pTSS" if x["cov"] == x["max_cov"] else "sTSS",axis=1)
     annotated_df = annotated_df[["chrom","start","end","tss_type","cov", "strand","gTSS_anot" ,"tssGene", "numSamples", "geneFrom", "max_cov", 'clusters']]
     if sample == "":
-        return annotated_df
+        return annotated_df.sort_values(["chrom", "strand", "start"], ascending=[["NC_005823.1", "NC_005824.1"], ["+", "-"], True])
     else: 
         sample_df=pd.read_csv(sample, sep="\t")
-        return sample_df.merge(annotated_df,  on=["chrom", "strand", "clusters"])
+        return sample_df.merge(annotated_df,  on=["chrom", "strand", "clusters"]).sort_values(["chrom", "strand", "start_x"], ascending=[["NC_005823.1", "NC_005824.1"], ["+", "-"], True])
 
 all_genes=get_genes(gff) 
 all_tss=get_tss(all_genes, filter_tss)
