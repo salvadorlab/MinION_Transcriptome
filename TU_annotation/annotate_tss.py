@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import argparse
+import math
 
 
 # parser=argparse.ArgumentParser(prog="tss_anot",usage='%(prog)s[options]',description='anot each tss as gTSS (pTSS/sTSS); iTSS; asTSS; oTSS:')
@@ -19,7 +20,6 @@ filter_tss="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/
 gff="/scratch/rx32940/minION/polyA_cDNA/map/genome/reference/GCF_000007685.1_ASM768v1_genomic.gff"
 output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/combined/filtered/chromIlead.annotate20.TSS.tab"
 sample="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/combined/clustered/combined.clustered20.TSS.tab"
-
 
 # put all reads in a dict 
 # with structure {chromI: {+:[(start, end)], lags:[(start, end)]}, chromII: {+:[(start, end)], lags:[(start, end)]}}
