@@ -1,0 +1,4 @@
+{
+    "python.venvPath": "~/.conda/envs/tu_annotation/bin/python3.9",
+    “python.terminal.activateEnvironment”: true
+}
