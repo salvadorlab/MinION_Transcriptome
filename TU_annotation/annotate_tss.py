@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import argparse
+import math
 
 
 parser=argparse.ArgumentParser(prog="tss_anot",usage='%(prog)s[options]',description='anot each tss as gTSS (pTSS/sTSS); iTSS; asTSS; oTSS:')
@@ -15,10 +16,10 @@ gff=args.gff
 output=args.output
 sample=args.sample
 
-# filter_tss="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/combined/filtered/combined.filtered20.TSS.tab"
-# gff="/scratch/rx32940/minION/polyA_cDNA/map/genome/reference/GCF_000007685.1_ASM768v1_genomic.gff"
-# output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/combined/filtered/chromIlead.annotate20.TSS.tab"
-# sample="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/combined/clustered/combined.clustered20.TSS.tab"
+filter_tss="/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/feature_annotation/1.data/tss/combined/filtered/combined.filtered20.TSS.tab"
+gff="/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/reference/GCF_000007685.1_ASM768v1_genomic.gff"
+output="/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/feature_annotation/1.data/tss/combined/filtered/combined.annotate20.TSS.tab"
+sample="/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/feature_annotation/1.data/tss/combined/clustered/combined.clustered20.TSS.tab"
 
 
 # put all reads in a dict 
@@ -131,8 +132,11 @@ def annotate_gTSS(tss_anot):
             cur_df["strand"]=strand
             annotated_df = pd.concat([annotated_df, cur_df], ignore_index=True)
     annotated_df.loc[annotated_df["tss_type"] == "gTSS", "max_cov"]=annotated_df.loc[annotated_df["tss_type"] == "gTSS"].groupby(['tssGene'])['cov'].transform(max)
+    annotated_df.loc[annotated_df["tss_type"] == "gTSS", "min_start"]=annotated_df.loc[annotated_df["tss_type"] == "gTSS"].groupby(['tssGene'])['start'].transform(min)
     annotated_df.loc[annotated_df["tss_type"] == "gTSS", "gTSS_anot"]=annotated_df.loc[annotated_df["tss_type"] == "gTSS"].apply(lambda x: "pTSS" if x["cov"] == x["max_cov"] else "sTSS",axis=1)
-    annotated_df = annotated_df[["chrom","start","end","tss_type","cov", "strand","gTSS_anot" ,"tssGene", "numSamples", "geneFrom", "max_cov", 'clusters']]
+    annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS", "pTSS_count"]=annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS"].groupby(['tssGene'])['gTSS_anot'].transform('count')
+    annotated_df.loc[annotated_df["tss_type"] == "gTSS", "gTSS_anot_final"]=annotated_df.loc[annotated_df["tss_type"] == "gTSS"].apply(lambda x: "pTSS" if x["pTSS_count"] == 1 else ("pTSS" if x['start'] == x['min_start'] and math.isnan(x["pTSS_count"]) == False else "sTSS"),axis=1)
+    annotated_df = annotated_df[["chrom","start","end","tss_type","cov", "strand","gTSS_anot_final" ,"tssGene", "numSamples", "geneFrom", "max_cov", 'clusters']]
     if sample == "":
         return annotated_df.sort_values(["chrom", "strand", "start"], ascending=[["NC_005823.1", "NC_005824.1"], ["+", "-"], True])
     else: 
