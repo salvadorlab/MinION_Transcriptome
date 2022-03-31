@@ -119,6 +119,13 @@ done
 #####################################################################
 
 source activate tu_annotation
+
+code_path="/home/rx32940/github/MinION_Transcriptome/TU_annotation"
+bam_path="/scratch/rx32940/minION/polyA_directRNA/map/genome/bam"
+output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output"
+REF="/scratch/rx32940/minION/polyA_cDNA/map/genome/reference"
+
+
 cat $output/tss/combined/filtered/chrom*.filtered20.TSS.tab | grep "chrom" -v  > $output/tss/combined/filtered/combined.filtered20.TSS.tab 
 
 cat $output/tss/combined/clustered/chrom*.clustered20.TSS.tab | grep "chrom" | head -n 1  >$output/tss/combined/clustered/combined.clustered20.TSS.tab 
