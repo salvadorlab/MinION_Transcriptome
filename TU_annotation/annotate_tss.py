@@ -16,10 +16,18 @@ import math
 # output=args.output
 # sample=args.sample
 
+<<<<<<< Updated upstream
 filter_tss="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/combined/filtered/combined.filtered20.TSS.tab"
 gff="/scratch/rx32940/minION/polyA_cDNA/map/genome/reference/GCF_000007685.1_ASM768v1_genomic.gff"
 output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/combined/filtered/chromIlead.annotate20.TSS.tab"
 sample="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/combined/clustered/combined.clustered20.TSS.tab"
+=======
+filter_tss="/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/feature_annotation/1.data/tss/combined/filtered/combined.filtered20.TSS.tab"
+gff="/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/Map_statistics_10042021/reference/GCF_000007685.1_ASM768v1_genomic.gff"
+output="/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/feature_annotation/1.data/tss/combined/filtered/combined.annotate20.TSS.tab"
+sample="/Users/rx32940/Dropbox/5.Rachel-projects/Transcriptomics_PolyATail/feature_annotation/1.data/tss/combined/clustered/combined.clustered20.TSS.tab"
+
+>>>>>>> Stashed changes
 
 # put all reads in a dict 
 # with structure {chromI: {+:[(start, end)], lags:[(start, end)]}, chromII: {+:[(start, end)], lags:[(start, end)]}}
@@ -137,8 +145,9 @@ def annotate_gTSS(tss_anot):
         return annotated_df.sort_values(["chrom", "strand", "start"], ascending=[["NC_005823.1", "NC_005824.1"], ["+", "-"], True])
     else: 
         sample_df=pd.read_csv(sample, sep="\t")
-        return sample_df.merge(annotated_df,  on=["chrom", "strand", "clusters"]).sort_values(["chrom", "strand", "start_x"], ascending=[["NC_005823.1", "NC_005824.1"], ["+", "-"], True])
-
+        present_df = sample_df.groupby(['clusters', 'chrom', 'strand']).ffill().reset_index(drop=True).groupby(['clusters']).tail(1)
+        combined_df = present_df.merge(annotated_df,  on=["chrom", "strand", "clusters"]).sort_values(["chrom", "strand", "start_x"], ascending=[["NC_005823.1", "NC_005824.1"], ["+", "-"], True]).reset_index(drop=True)
+        return combined_df
 all_genes=get_genes(gff) 
 all_tss=get_tss(all_genes, filter_tss)
 tss_anot=annotate_tss(all_genes, all_tss)
