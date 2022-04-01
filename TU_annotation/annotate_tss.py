@@ -129,10 +129,10 @@ def annotate_gTSS(tss_anot):
             cur_df["strand"]=strand
             annotated_df = pd.concat([annotated_df, cur_df], ignore_index=True)
     annotated_df.loc[annotated_df["tss_type"] == "gTSS", "max_cov"]=annotated_df.loc[annotated_df["tss_type"] == "gTSS"].groupby(['tssGene'])['cov'].transform(max)
-    annotated_df.loc[annotated_df["tss_type"] == "gTSS", "min_start"]=annotated_df.loc[annotated_df["tss_type"] == "gTSS"].groupby(['tssGene'])['start'].transform(min)
     annotated_df.loc[annotated_df["tss_type"] == "gTSS", "gTSS_anot"]=annotated_df.loc[annotated_df["tss_type"] == "gTSS"].apply(lambda x: "pTSS" if x["cov"] == x["max_cov"] else "sTSS",axis=1)
     annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS", "pTSS_count"]=annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS"].groupby(['tssGene'])['gTSS_anot'].transform('count')
-    annotated_df.loc[annotated_df["tss_type"] == "gTSS", "gTSS_anot_final"]=annotated_df.loc[annotated_df["tss_type"] == "gTSS"].apply(lambda x: "pTSS" if x["pTSS_count"] == 1 else ("pTSS" if x['start'] == x['min_start'] and math.isnan(x["pTSS_count"]) == False else "sTSS"),axis=1)
+    annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS", "max_sample"]=annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS"].groupby(['tssGene'])['numSamples'].transform(max)
+    annotated_df.loc[annotated_df["tss_type"] == "gTSS", "gTSS_anot_final"]=annotated_df.loc[annotated_df["tss_type"] == "gTSS"].apply(lambda x: "pTSS" if x["pTSS_count"] == 1 else ("pTSS" if x['numSamples'] == x['max_sample'] and math.isnan(x["pTSS_count"]) == False else "sTSS"),axis=1)
     annotated_df = annotated_df[["chrom","start","end","tss_type","cov", "strand","gTSS_anot_final" ,"tssGene", "numSamples", "geneFrom", "max_cov", 'clusters']]
     if sample == "":
         return annotated_df.sort_values(["chrom", "strand", "start"], ascending=[["NC_005823.1", "NC_005824.1"], ["+", "-"], True])
@@ -143,6 +143,9 @@ def annotate_gTSS(tss_anot):
         del present_df['start']
         combined_df = present_df.merge(annotated_df,  on=["chrom", "strand", "clusters"]).sort_values(["chrom", "strand", "start"], ascending=[["NC_005823.1", "NC_005824.1"], ["+", "-"], True]).reset_index(drop=True)
         return combined_df
+
+    
+    
 all_genes=get_genes(gff) 
 all_tss=get_tss(all_genes, filter_tss)
 tss_anot=annotate_tss(all_genes, all_tss)
