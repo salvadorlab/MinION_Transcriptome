@@ -61,25 +61,51 @@ def get_tss(all_genes, filter_tss):
 def get_tss_anot(all_genes,chrom ,strand, item):
     tss=int(item[0])
      # each tss loop through all genes, both lead and lag
+    current_gene=""
+    current_anot=""
     for gene in all_genes[chrom][strand]:
         if strand == "+": # on lead strand
             if tss > gene[1]:
                 continue
-            elif gene[0] - tss <=300 and (gene[0] -tss >=0):
-                return (*item, "gTSS", gene[2])
-            elif tss >= gene[0] and tss <= gene[1]:
-                return (*item, "iTSS", gene[2])
-            else:
+            elif gene[0] - tss > 300:
                 break
+            else:
+                if gene[0] - tss <=300 and (gene[0] -tss >=0):
+                    if current_gene == "":
+                        current_gene = gene[2]
+                    elif gene[2] != current_gene.split(";")[-1]:
+                        current_gene = current_gene + ";" + gene[2]
+                    else:
+                        current_gene = current_gene
+                    current_anot = current_anot + ";" +"gTSS"
+                if tss >= gene[0] and tss <= gene[1]:
+                    if current_gene == "":
+                        current_gene = gene[2]
+                    elif gene[2] != current_gene.split(";")[-1]:
+                        current_gene = current_gene + ";" + gene[2]
+                    else:
+                        current_gene = current_gene
+                    current_anot = current_anot + ";"+ "iTSS" 
         else: # on lag strand
             if (tss < gene[0]):
                 break
-            elif (tss - gene[1] <= 300) and (tss - gene[1] >=0):
-                return (*item, "gTSS", gene[2])
-            elif tss>= gene[0] and tss <= gene[1]:
-                return (*item, "iTSS", gene[2])
             else:
-                continue
+                if (tss - gene[1] <= 300) and (tss - gene[1] >=0):
+                    if current_gene == "":
+                        current_gene = gene[2]
+                    elif gene[2] != current_gene.split(";")[-1]:
+                        current_gene = current_gene + ";" + gene[2]
+                    else:
+                        current_gene = current_gene
+                    current_anot = current_anot + ";"+"gTSS"
+                if tss>= gene[0] and tss <= gene[1]:
+                    if current_gene == "":
+                        current_gene = gene[2]
+                    elif gene[2] != current_gene.split(";")[-1]:
+                        current_gene = current_gene + ";" + gene[2]
+                    else:
+                        current_gene = current_gene
+                    current_anot = current_anot + ";"+"iTSS"      
     if strand == "+":
         ostrand = "-"
     else:
@@ -88,22 +114,47 @@ def get_tss_anot(all_genes,chrom ,strand, item):
         if ostrand == "+":
             if tss > gene[1]:
                 continue
-            elif (gene[0] - tss <= 100):
-                return (*item, "asTSS", gene[2])
-            elif tss>= gene[0] and tss <= gene[1]:
-                return (*item, "asTSS", gene[2])
-            else:
-                return (*item, "oTSS", ".")
+            if (gene[0] - tss <= 100):
+                if current_gene == "":
+                    current_gene = gene[2]
+                elif gene[2] != current_gene.split(";")[-1]:
+                    current_gene = current_gene + ";" + gene[2]
+                else:
+                    current_gene = current_gene
+                current_anot = current_anot + ";"+"asTSS"
+            if tss>= gene[0] and tss <= gene[1]:
+                if current_gene == "":
+                    current_gene = gene[2]
+                elif gene[2] != current_gene.split(";")[-1]:
+                    current_gene = current_gene + ";" + gene[2]
+                else:
+                    current_gene = current_gene
+                current_anot = current_anot + ";"+"asTSS"
         else:
             if (tss < gene[0]):
-                return (*item, "oTSS", gene[2])
-            elif (tss -gene[1] <= 100) and (tss -gene[1] >=0):
-                return (*item, "asTSS", gene[2])
-            elif tss>= gene[0] and tss <= gene[1]:
-                return (*item, "asTSS", gene[2])
+                break
             else:
-                continue
-    return (*item, "oTSS", ".")
+                if (tss -gene[1] <= 100) and (tss -gene[1] >=0):
+                    if current_gene == "":
+                        current_gene = gene[2]
+                    elif gene[2] != current_gene.split(";")[-1]:
+                        current_gene = current_gene + ";" + gene[2]
+                    else:
+                        current_gene = current_gene
+                    current_anot = current_anot + ";"+"asTSS"
+                if tss>= gene[0] and tss <= gene[1]:
+                    if current_gene == "":
+                        current_gene = gene[2]
+                    elif gene[2] != current_gene.split(";")[-1]:
+                        current_gene = current_gene + ";" + gene[2]
+                    else:
+                        current_gene = current_gene
+                    current_anot = current_anot + ";"+"asTSS"
+    if current_anot == "":
+        return (*item, "oTSS", "")
+    else:
+        current_anot = current_anot.strip(";")
+        return (*item, current_anot, current_gene)
 
 def annotate_tss(all_genes, all_tss):
     all_genes=all_genes
@@ -121,31 +172,31 @@ def annotate_tss(all_genes, all_tss):
 
     
 def annotate_gTSS(tss_anot):
-    annotated_df=pd.DataFrame(columns=["start","end", "geneFrom", "cov", "numSamples", "clusters", "tss_type", "tssGene","chrom", "strand"])
+    annotated_df=pd.DataFrame(columns=["start","end", "geneFrom", "cov", "numSamples", "clusters", "tss_type","tssGene","chrom", "strand"])
     for chrom in tss_anot.keys():
         for strand in tss_anot[chrom].keys():
             cur_df = pd.DataFrame(tss_anot[chrom][strand], columns=["start","end", "geneFrom", "cov", "numSamples", "clusters", "tss_type", "tssGene"])
+            cur_df["gTSS"] = cur_df.apply(lambda x: "gTSS" if "gTSS" in x["tss_type"] else "",axis=1)
             cur_df["chrom"]=chrom
             cur_df["strand"]=strand
             annotated_df = pd.concat([annotated_df, cur_df], ignore_index=True)
-    annotated_df.loc[annotated_df["tss_type"] == "gTSS", "max_cov"]=annotated_df.loc[annotated_df["tss_type"] == "gTSS"].groupby(['tssGene'])['cov'].transform(max)
-    annotated_df.loc[annotated_df["tss_type"] == "gTSS", "gTSS_anot"]=annotated_df.loc[annotated_df["tss_type"] == "gTSS"].apply(lambda x: "pTSS" if x["cov"] == x["max_cov"] else "sTSS",axis=1)
-    annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS", "pTSS_count"]=annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS"].groupby(['tssGene'])['gTSS_anot'].transform('count')
-    annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS", "max_sample"]=annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS"].groupby(['tssGene'])['numSamples'].transform(max)
-    annotated_df.loc[annotated_df["tss_type"] == "gTSS", "gTSS_anot_final"]=annotated_df.loc[annotated_df["tss_type"] == "gTSS"].apply(lambda x: "pTSS" if x["pTSS_count"] == 1 else ("pTSS" if x['numSamples'] == x['max_sample'] and math.isnan(x["pTSS_count"]) == False else "sTSS"),axis=1)
-    annotated_df = annotated_df[["chrom","start","end","tss_type","cov", "strand","gTSS_anot_final" ,"tssGene", "numSamples", "geneFrom", "max_cov", 'clusters']]
+    annotated_df.loc[annotated_df["gTSS"] != "", "gTSS_gene"]=annotated_df.loc[annotated_df["gTSS"] != ""].apply(lambda x: x['tssGene'].split(";")[x["tss_type"].split(";").index("gTSS")] if "gTSS" in x["tss_type"] else "", axis=1)
+    annotated_df.loc[annotated_df["gTSS"] != "", "max_cov"]=annotated_df.loc[annotated_df["gTSS"] != ""].groupby(['gTSS_gene'])['cov'].transform(max)
+    annotated_df.loc[annotated_df["gTSS"] == "gTSS", "gTSS_anot"]=annotated_df.loc[annotated_df["gTSS"] != ""].apply(lambda x: "pTSS" if x["cov"] == x["max_cov"] else "sTSS",axis=1)
+    annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS", "pTSS_count"]=annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS"].groupby(['gTSS_gene'])['gTSS_anot'].transform('count')
+    annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS", "max_sample"]=annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS"].groupby(['gTSS_gene'])['numSamples'].transform(max)
+    annotated_df.loc[annotated_df["gTSS"] == "gTSS", "gTSS_anot_final"]=annotated_df.loc[annotated_df["gTSS"] == "gTSS"].apply(lambda x: "pTSS" if x["pTSS_count"] == 1 else ("pTSS" if ((x['numSamples'] == x['max_sample']) and (math.isnan(x["pTSS_count"]) == False)) else "sTSS"),axis=1)
+    annotated_df = annotated_df[["chrom","start","end","tss_type","cov", "strand","gTSS_anot_final" ,"gTSS_gene"  ,"tssGene", "numSamples", "geneFrom", "max_cov", 'clusters']]
     if sample == "":
         return annotated_df.sort_values(["chrom", "strand", "start"], ascending=[["NC_005823.1", "NC_005824.1"], ["+", "-"], True])
     else: 
         sample_df=pd.read_csv(sample, sep="\t")
         sample_df.update(sample_df.groupby(['chrom', 'strand','clusters']).ffill())
-        present_df = sample_df.groupby(['clusters']).tail(1)
+        present_df = sample_df.groupby(['chrom', 'strand','clusters']).tail(1)
         del present_df['start']
-        combined_df = present_df.merge(annotated_df,  on=["chrom", "strand", "clusters"]).sort_values(["chrom", "strand", "start"], ascending=[["NC_005823.1", "NC_005824.1"], ["+", "-"], True]).reset_index(drop=True)
+        combined_df = annotated_df.merge(present_df,  on=["chrom", "strand", "clusters"], how="left").sort_values(["chrom", "strand", "start"], ascending=[["NC_005823.1", "NC_005824.1"], ["+", "-"], True]).reset_index(drop=True)
         return combined_df
 
-    
-    
 all_genes=get_genes(gff) 
 all_tss=get_tss(all_genes, filter_tss)
 tss_anot=annotate_tss(all_genes, all_tss)

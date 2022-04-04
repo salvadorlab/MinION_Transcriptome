@@ -6,6 +6,7 @@ args <- commandArgs(trailingOnly = TRUE)
 tu_path <- args[1] # input
 out_path <- args[2]
 feature <- args[3] # tss or tts
+output_prefix <- ifelse(args[4] == "", "all_samples", args[4])
 
 # tu_path <- "/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss"
 # out_path <- "/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss"
@@ -40,15 +41,16 @@ dRNA_df_combined$present <- paste(dRNA_df_combined$end, dRNA_df_combined$cov, se
 
 all_samples_combined_raw <- dRNA_df_combined %>% select(!c(end, cov)) %>% pivot_wider(names_from="sample", values_from = "present") %>% arrange(start)
 
-chromIlead <- all_samples_combined_raw %>% subset(chrom != "NC_005824.1" & strand == "+")  
-chromIlag <- all_samples_combined_raw %>% subset(chrom != "NC_005824.1" & strand == "-")
-chromIIlead <- all_samples_combined_raw %>% subset(chrom != "NC_005823.1" & strand == "+")  
-chromIIlag <- all_samples_combined_raw %>% subset(chrom != "NC_005823.1" & strand == "-")  
+# chromIlead <- all_samples_combined_raw %>% subset(chrom != "NC_005824.1" & strand == "+")  
+# chromIlag <- all_samples_combined_raw %>% subset(chrom != "NC_005824.1" & strand == "-")
+# chromIIlead <- all_samples_combined_raw %>% subset(chrom != "NC_005823.1" & strand == "+")  
+# chromIIlag <- all_samples_combined_raw %>% subset(chrom != "NC_005823.1" & strand == "-")  
 
-chrom_strand_df <- c("chromIlead", "chromIlag", "chromIIlead", "chromIIlag")
+# chrom_strand_df <- c("chromIlead", "chromIlag", "chromIIlead", "chromIIlag")
 
-for(df in chrom_strand_df){
-  # print(get(df))
-  write.table(get(df), file.path(out_path,paste0(df, ".combined.", toupper(feature), ".tab")), sep="\t", quote = FALSE, row.names=FALSE)
+# for(df in chrom_strand_df){
+#   # print(get(df))
+#   write.table(get(df), file.path(out_path,paste0(df, ".combined.", toupper(feature), ".tab")), sep="\t", quote = FALSE, row.names=FALSE)
  
-}
+# }
+write.table(all_samples_combined_raw, file.path(out_path,paste0(output_prefix, ".combined.", toupper(feature), ".tab")), sep="\t", quote = FALSE, row.names=FALSE)
