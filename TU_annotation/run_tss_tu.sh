@@ -95,11 +95,11 @@ done
 #####################################################################
 
 ### based on overlapping size between all samples, TSS within 20bps were used as threshold to be seen as the same tss
-for file in $output/tss/combined/clustered/Q*.clustered20.TSS.tab;
+for file in $output/tss/combined/clustered/Q*.clustered30.TSS.tab;
 do
-sample=$(basename $file '.clustered20.TSS.tab')
+sample=$(basename $file '.clustered30.TSS.tab')
 
-python $code_path/filter_tss.py -i $file -o $output/tss/combined/filtered/$sample.filtered20.TSS.tab
+python $code_path/filter_tss.py -i $file -o $output/tss/combined/filtered/$sample.filtered30.TSS.tab
 done
 
 #####################################################################
@@ -119,14 +119,14 @@ REF="/scratch/rx32940/minION/polyA_cDNA/map/genome/reference"
 # cat $output/tss/combined/clustered/chrom*.clustered20.TSS.tab | grep "chrom" | head -n 1  >$output/tss/combined/clustered/combined.clustered20.TSS.tab 
 # cat $output/tss/combined/clustered/chrom*.clustered20.TSS.tab | grep "chrom" -v  >>$output/tss/combined/clustered/combined.clustered20.TSS.tab 
 
-for file in $output/tss/combined/filtered/Q*_dRNA.filtered20.TSS.tab;
+for file in $output/tss/combined/filtered/Q*_dRNA.filtered30.TSS.tab;
 do
-sample=$(basename $file '.filtered20.TSS.tab')
+sample=$(basename $file '.filtered30.TSS.tab')
 python $code_path/annotate_tss.py \
 -i $file \
 -g $REF/GCF_000007685.1_ASM768v1_genomic.gff \
--o $output/tss/combined/filtered/$sample.filtered20.TSS.anot.tab \
--s $output/tss/combined/clustered/$sample.clustered20.TSS.tab 
+-o $output/tss/combined/filtered/$sample.filtered30.TSS.anot.tab \
+-s $output/tss/combined/clustered/$sample.clustered30.TSS.tab -c True
 done
 
 #####################################################################
@@ -134,14 +134,14 @@ done
 #####################################################################
 
 
-cat $output/tss/combined/filtered/Q29_dRNA.filtered20.TSS.anot.tab | awk -F'\t' '{for (i=1; i<=14; i++) printf $i"\t"; printf "Q29\n"}' > test1.tab
-cat $output/tss/combined/filtered/Q36_dRNA.filtered20.TSS.anot.tab | tail -n +2 | awk -F'\t' '{for (i=1; i<=14; i++) printf $i"\t"; printf "Q36\n"}' > test.tab
+cat $output/tss/combined/filtered/Q29_dRNA.filtered30.TSS.anot.tab | awk -F'\t' '{for (i=1; i<=14; i++) printf $i"\t"; printf "Q29\n"}' > test1.tab
+cat $output/tss/combined/filtered/Q36_dRNA.filtered30.TSS.anot.tab | tail -n +2 | awk -F'\t' '{for (i=1; i<=14; i++) printf $i"\t"; printf "Q36\n"}' > test.tab
 
-cat test1.tab test.tab > $output/tss/combined/filtered/combined_dRNA.filtered20.TSS.anot.tab 
+cat test1.tab test.tab > $output/tss/combined/filtered/combined_dRNA.filtered30.TSS.anot.tab 
 
 # cluster q29 and q36 tss
-python $code_path/cluster_tss.py -i $output/tss/combined/filtered/combined_dRNA.filtered20.TSS.anot.tab \
--o $output/tss/combined/filtered/combined_dRNA.filtered20.TSS.anot.clustered.tab \
--c 1 -t 10 -s 5 # strand on fifth
+python $code_path/cluster_tss.py -i $output/tss/combined/filtered/combined_dRNA.filtered30.TSS.anot.tab \
+-o $output/tss/combined/filtered/combined_dRNA.filtered30.TSS.anot.clustered.tab \
+-c 1 -t 30 -s 5 # strand on fifth
 
 
