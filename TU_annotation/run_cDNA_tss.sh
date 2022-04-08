@@ -41,7 +41,7 @@ echo -e "source activate tu_annotation\n" >> $code_path/sub.sh
 
 echo -e "echo \"Transcritption analysis for $sample\"" >> $code_path/sub.sh
 
-echo -e "python $code_path/find_feature.py TSS -b $bam -a $REF/GCF_000007685.1_ASM768v1_genomic.gff -o $output/tss -uf 0.9 \n" >> $code_path/sub.sh
+echo -e "python $code_path/find_feature.py TSS -b $bam -a $REF/GCF_000007685.1_ASM768v1_genomic.gff -o $output/tss/raw -uf 0.9 \n" >> $code_path/sub.sh
 
 echo -e "python $code_path/find_feature.py TTS -b $bam -a $REF/GCF_000007685.1_ASM768v1_genomic.gff -o $output/tts\n" >> $code_path/sub.sh
 
@@ -55,38 +55,25 @@ done
 #####################################################################
 ### combine features from all samples together
 #####################################################################
-# ml R/4.1.3-foss-2020b
+ml R/4.1.3-foss-2020b
 
-# code_path="/home/rx32940/github/MinION_Transcriptome/TU_annotation"
-# bam_path="/scratch/rx32940/minION/polyA_cDNA/map/genome/bam"
-# output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/cdna_output"
-# REF="/scratch/rx32940/minION/polyA_cDNA/map/genome/reference"
+code_path="/home/rx32940/github/MinION_Transcriptome/TU_annotation"
+bam_path="/scratch/rx32940/minION/polyA_cDNA/map/genome/bam"
+output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/cdna_output"
+REF="/scratch/rx32940/minION/polyA_cDNA/map/genome/reference"
 
-# mkdir -p $output/tss/Q29 $output/tss/Q36 $output/tss/combined
+mkdir -p $output/tss/combined
 
-# # mv $output/tss/Q36_Copen* $output/tss/Q36 
+# mv $output/tss/Q36_Copen* $output/tss/Q36 
 
-# # mv $output/tss/*tab $output/tss/Q29
-
-# Rscript $code_path/combine_samples.r $output/tss/Q36 $output/tss/Q36 tss Q36_dRNA
+Rscript $code_path/combine_samples.r $output/tss/raw $output/tss/combined tss LIC_cDNA
 
 # #####################################################################
 # ### cluster TSS from all samples
 # #####################################################################
 
 
-# mkdir -p $output/tss/combined/clustered/
-# for i in {0..100..10};
-# do
-# for com in $output/tss/Q*/*.combined.TSS.tab;
-# do
-# sample=$(basename $com '.combined.TSS.tab')
-# # python $code_path/cluster_tss.py -i $com -o $output/tss/$sample.clustered.TSS.tab -c 1 # 10 bp cluster
-# # python $code_path/cluster_tss.py -i $com -o $output/tss/$sample.clustered20.TSS.tab -c 1 -t 20 # 20 bp cluster
-# python $code_path/cluster_tss.py -i $com -o $output/tss/combined/clustered/$sample.clustered$i.TSS.tab -c 1 -t $i # 30 bp cluster
-# echo $sample
-# done
-# done
+python $code_path/cluster_tss.py -i $output/tss/combined/LIC_cDNA.combined.TSS.tab -o $output/tss/combined/LIC_cDNA.clustered20.TSS.tab -c 1 -t 20
 
 # #####################################################################
 # ### Filter TSS from each cluster
@@ -95,12 +82,8 @@ done
 # #####################################################################
 
 # ### based on overlapping size between all samples, TSS within 20bps were used as threshold to be seen as the same tss
-# for file in $output/tss/combined/clustered/Q*.clustered30.TSS.tab;
-# do
-# sample=$(basename $file '.clustered30.TSS.tab')
+python $code_path/filter_tss.py -i $output/tss/combined/LIC_cDNA.clustered20.TSS.tab -o $output/tss/combined/LIC_cDNA.filtered20.TSS.tab
 
-# python $code_path/filter_tss.py -i $file -o $output/tss/combined/filtered/$sample.filtered30.TSS.tab
-# done
 
 # #####################################################################
 # ### annotate TSS based on gTSS (pTSS & sTSS) iTSS asTSS oTSS
@@ -113,20 +96,20 @@ bam_path="/scratch/rx32940/minION/polyA_cDNA/map/genome/bam"
 output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/cdna_output"
 REF="/scratch/rx32940/minION/polyA_cDNA/map/genome/reference"
 
-
-# cat $output/tss/combined/filtered/chrom*.filtered20.TSS.tab | grep "chrom" -v  > $output/tss/combined/filtered/combined.filtered20.TSS.tab 
-
-# cat $output/tss/combined/clustered/chrom*.clustered20.TSS.tab | grep "chrom" | head -n 1  >$output/tss/combined/clustered/combined.clustered20.TSS.tab 
-# cat $output/tss/combined/clustered/chrom*.clustered20.TSS.tab | grep "chrom" -v  >>$output/tss/combined/clustered/combined.clustered20.TSS.tab 
-
-# for file in $output/tss/combined/filtered/Q*_dRNA.filtered30.TSS.tab;
-# do
-# sample=$(basename $file '.filtered30.TSS.tab')
+###########combined annotation
 python $code_path/annotate_tss.py \
--i $output/tss/Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_PolyATail_rna_filtered.linear.TSS.merged.tab \
+-i $output/tss/combined/LIC_cDNA.filtered20.TSS.tab \
 -g $REF/GCF_000007685.1_ASM768v1_genomic.gff \
--o $output/tss/Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_PolyATail_rna_filtered.linear.TSS.merged.anot.tab
-# done
+-o $output/tss/combined/LIC_cDNA.anot.TSS.tab \
+-s $output/tss/combined/LIC_cDNA.clustered20.TSS.tab \
+-c True
+
+
+# ########individual sample annotation
+# python $code_path/annotate_tss.py \
+# -i $output/tss/raw/Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail_Qiagen_rna_filtered.linear.TSS.merged.tab \
+# -g $REF/GCF_000007685.1_ASM768v1_genomic.gff \
+# -o $output/tss/anot/Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_NoPolyATail_Qiagen_rna_filtered.linear.TSS.anot.tab
 
 # #####################################################################
 # ### check overlapping TSS for LIC under 29C and 36C

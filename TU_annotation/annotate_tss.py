@@ -20,11 +20,11 @@ sample=args.sample
 isCombined=bool(args.isCombined)
 
 
-# filter_tss="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/cdna_output/tss/Copenhageni_Basecalled_Aug_16_2019_Direct-cDNA_PolyATail_rna_filtered.linear.TSS.merged.tab"
+# filter_tss="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/cdna_output/tss/combined/LIC_cDNA.filtered20.TSS.tab"
 # gff="/scratch/rx32940/minION/polyA_cDNA/map/genome/reference/GCF_000007685.1_ASM768v1_genomic.gff"
 # output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/cdna.filtered20.TSS.tab"
 # sample=""
-# isCombined=False
+# isCombined=True
 
 # put all reads in a dict 
 # with structure {chromI: {+:[(start, end)], lags:[(start, end)]}, chromII: {+:[(start, end)], lags:[(start, end)]}}
@@ -200,13 +200,20 @@ def annotate_gTSS(tss_anot):
     if isCombined:
         second_filter="numSamples"
         filter_name="max_sample"
+        #if cov are even between 2 gTSs, then take the one most samples agree on
         annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS", filter_name]=annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS"].groupby(['gTSS_gene'])[second_filter].transform(max)
-        annotated_df.loc[annotated_df["gTSS"] == "gTSS", "gTSS_anot_final"]=annotated_df.loc[annotated_df["gTSS"] == "gTSS"].apply(lambda x: "pTSS" if x["pTSS_count"] == 1 else ("pTSS" if ((x[second_filter] == x[filter_name]) and (math.isnan(x["pTSS_count"]) == False)) else "sTSS"),axis=1)
+        annotated_df.loc[annotated_df["gTSS"] == "gTSS", "gTSS_anot"]=annotated_df.loc[annotated_df["gTSS"] == "gTSS"].apply(lambda x: "pTSS" if x["pTSS_count"] == 1 else ("pTSS" if ((x[second_filter] == x[filter_name]) and (math.isnan(x["pTSS_count"]) == False))  else "sTSS"),axis=1)
+        annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS", "pTSS_count"]=annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS"].groupby(['gTSS_gene'])['gTSS_anot'].transform('count')
+        # if sample number of samples agreed, then take the farthest
+        annotated_df.loc[(annotated_df["gTSS_anot"] == "pTSS") & (annotated_df["strand"] == "+"), 'min_start']=annotated_df.loc[(annotated_df["gTSS_anot"] == "pTSS") & (annotated_df["strand"] == "+")].groupby(['gTSS_gene'])['start'].transform(min)
+        annotated_df.loc[(annotated_df["gTSS_anot"] == "pTSS") & (annotated_df["strand"] == "-"), 'min_start']=annotated_df.loc[(annotated_df["gTSS_anot"] == "pTSS") & (annotated_df["strand"] == "-")].groupby(['gTSS_gene'])['start'].transform(max)
+        annotated_df.loc[annotated_df["gTSS"] == "gTSS", "gTSS_anot_final"]=annotated_df.loc[annotated_df["gTSS"] == "gTSS"].apply(lambda x: "pTSS" if x["pTSS_count"] == 1 else ("pTSS" if ((x['start'] == x['min_start']) and (math.isnan(x["pTSS_count"]) == False))  else "sTSS"),axis=1)
         annotated_df = annotated_df[["chrom","start","end","tss_type","cov", "strand","gTSS_anot_final" ,"gTSS_gene"  ,"tssGene", second_filter, "geneFrom", "max_cov", 'clusters']]
     else: # if is tss obtained from a single sample, instead of break even by numSamples reporting the TSS, use the minimum TSS start site
         second_filter="start"
         filter_name="min_start"
-        annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS", "min_start"]=annotated_df.loc[annotated_df["gTSS_anot"] == "pTSS"].groupby(['gTSS_gene'])[second_filter].transform(min)
+        annotated_df.loc[(annotated_df["gTSS_anot"] == "pTSS") & (annotated_df["strand"] == "+"), filter_name]=annotated_df.loc[(annotated_df["gTSS_anot"] == "pTSS") & (annotated_df["strand"] == "+")].groupby(['gTSS_gene'])[second_filter].transform(min)
+        annotated_df.loc[(annotated_df["gTSS_anot"] == "pTSS") & (annotated_df["strand"] == "-"), filter_name]=annotated_df.loc[(annotated_df["gTSS_anot"] == "pTSS") & (annotated_df["strand"] == "-")].groupby(['gTSS_gene'])[second_filter].transform(max)
         annotated_df.loc[annotated_df["gTSS"] == "gTSS", "gTSS_anot_final"]=annotated_df.loc[annotated_df["gTSS"] == "gTSS"].apply(lambda x: "pTSS" if x["pTSS_count"] == 1 else ("pTSS" if ((x[second_filter] == x[filter_name]) and (math.isnan(x["pTSS_count"]) == False)) else "sTSS"),axis=1)
         annotated_df = annotated_df[["chrom","start","end","tss_type","cov", "strand","gTSS_anot_final" ,"gTSS_gene"  ,"tssGene",  "geneFrom", "max_cov"]]
     if sample == "":

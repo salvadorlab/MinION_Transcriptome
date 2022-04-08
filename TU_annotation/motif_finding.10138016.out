@@ -1,0 +1,123 @@
+Starting getsize: getsize /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_TSS_upstream_80bp.uniq.fil8.fasta 1> $metrics
+GETSIZE ran successfully in 0.093874 seconds
+Starting fasta-get-markov: fasta-get-markov -nostatus -nosummary -dna -m 2 -pseudo 1 /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_TSS_upstream_80bp.uniq.fil8.fasta /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme/background
+FASTA-GET-MARKOV ran successfully in 0.02072 seconds
+Starting streme: streme --verbosity 1 --oc /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme/streme_out -dna --minw 6 --maxw 15 --order 2 --bfile /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme/background --seed 0 --align right --evalue --thresh 0.05 --p /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_TSS_upstream_80bp.uniq.fil8.fasta
+STREME ran successfully in 33.846884 seconds
+Starting meme: meme -oc /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme/meme_out -mod zoops -minw 6 -maxw 15 -bfile /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme/background -markov_order 2 -seed 0 -dna -revcomp -evt 0.05 -nostatus /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_TSS_upstream_80bp.uniq.fil8.fasta
+--------------------------------------------------------------------------
+A process has executed an operation involving a call to the
+"fork()" system call to create a child process.  Open MPI is currently
+operating in a condition that could result in memory corruption or
+other system errors; your job may hang, crash, or produce silent
+data corruption.  The use of fork() (or system() or other calls that
+create child processes) is strongly discouraged.
+
+The process that invoked fork was:
+
+  Local host:          [[11588,1],0] (PID 24007)
+
+If you are *absolutely sure* that your application will successfully
+and correctly survive a call to fork(), you may disable this warning
+by setting the mpi_warn_on_fork MCA parameter to 0.
+--------------------------------------------------------------------------
+Ghostscript did not return a number when the version was queried.
+MEME ran successfully in 1178.907868 seconds
+Starting sea: sea --verbosity 1 --oc /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme/sea_out --qvalue --thresh 1 --order 2 --bfile /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme/background --seed 0 --align right --motif-pseudo 0.01 --noseqs --m /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme/meme_out/meme.xml --m /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme/streme_out/streme.xml --p /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_TSS_upstream_80bp.uniq.fil8.fasta
+SEA ran successfully in 1.11909 seconds
+Starting sea: sea --verbosity 1 --oc /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme/distr_out --pvalue --thresh 1 --hofract 0 --order 2 --bfile /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme/background --seed 0 --motif-pseudo 0.01 --p /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_TSS_upstream_80bp.uniq.fil8.fasta --m /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme/combined.meme
+SEA ran successfully in 1.174405 seconds
+Starting tomtom: tomtom -verbosity 1 -text -thresh 0.1 /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme/combined.meme /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme/combined.meme 1> /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme/motif_alignment.txt
+TOMTOM ran successfully in 0.224257 seconds
+Starting xstreme_html_to_tsv: xstreme_html_to_tsv /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme/xstreme.html /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme/xstreme.tsv "xstreme -o /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme --align right --desc --dna --p /scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_TSS_upstream_80bp.uniq.fil8.fasta --fimo-skip" 5.4.1 "Sat Aug 21 19\:23\:23 2021 -0700"
+XSTREME_HTML_TO_TSV ran successfully in 0.340218 seconds
+ERROR: Can't output to "/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss/upstream80/Q29_streme" as the directory already exists.
+
+xstreme [options] --p <primary sequences> [--m <motifs>]*
+
+ Options:
+					***INPUT***
+  --p                <path>  : primary sequence file name (required) 
+  --m                <path>  : file of known motifs in MEME format; (optional, may be repeated)
+
+					***OUTPUT***
+  --o                <dir>   : output to the specified directory, failing if the directory exists
+  --oc               <dir>   : output to the specified directory, overwriting if the directory exists
+
+			***CONTROL SEQUENCES AND BACKGROUND MODEL***
+  --n                <path>  : negative (control) sequence file name;
+  			       the control sequences will be input to STREME and SEA, and
+			       used to create a background file for MEME, STREME and SEA.
+                               default: control sequences will be created by shuffling
+			       the primary sequences for STREME and SEA, and a background
+			       file for MEME will be created from the primary sequences
+  --order            <m>     : the Markov order of the shuffling for creating negative sequences
+			       (preserve k-mers where k=m+1), and the order of the
+			       Markov background model to create if none given;
+			       <m> must be in the range: [0,..,4];
+                               default: 2 (DNA and RNA), 0 (Protein and Custom alphabets)
+  --bfile            <path>  : background file to use with MEME, STREME and SEA; overrides creating of the
+			       background file described under --n
+  --seed             <seed>  : Random seed to be passed to MEME, STREME and SEA; default: 0
+
+					***ALPHABET***
+  --dna                      : set the alphabet to DNA; this is the default
+  --rna                      : set the alphabet to RNA; default: DNA
+  --protein                  : set the alphabet to PROTEIN; default: DNA
+  --[x]alph          <path>  : alphabet file containing (possibly non-standard) alphabet;
+                               if the input motifs (see --m) are in an alphabet that is
+                               a subset of the input sequences, --xalph will also cause them
+                               to be converted to the alphabet in the file; default: DNA
+  --dna2rna                  : input DNA sequences will be treated as RNA and discoverd motifs
+                               will use the RNA alphabet; known motifs be in the RNA alphabet
+                               unless you also specify --xalph with an RNA alphabet file
+
+			***OUTPUT FILTERING AND NUMBER OF MOTIFS***
+  --evt               <evt>  : E-value threshold for including motifs; default: 0.05
+  --time          <minutes>  : maximum time (in seconds) that XSTREME has to run; default: no limit
+
+					***MOTIF WIDTH***
+  --minw             <num>   : minimum motif width; default: 6
+  --maxw             <num>   : maximum motif width; default: 15
+  --w                <num>   : maximum motif width; overrides --minw and --maxw
+
+					***MISC***
+  --mea-only                 : just do Motif Enrichment Analysis (MEA) using the known motifs, 
+                               no motif discovery; default: do motif discovery, too
+  --ctrim             <num>  : centrally trim sequences to this size; default: 0 (no trim)
+  --align left|center|right  : align sequences left/center/right for site positional 
+                               distribution plots; default: center
+  --group-thresh     <gthr>  : primary threshold for clustering motifs; default: 0.05
+  --group-weak       <gwk>   : secondary threshold for clustering motifs; default: 2*gthr
+  --desc             <text>  : description of the job
+  --dfile            <file>  : file containing plain text description of the job
+  --help                     : display this help message
+  --version                  : print the version and exit
+  --verbosity [0|1|2|3|4|5]  : amount of outout information messages; default: 1
+
+ 				***STREME SPECIFIC OPTIONS*** 
+  --streme-evt        <evt>  : STREME stops if 3 consecutive motifs have E-value greater than <num>; 
+                               default: value specified for --evt (or its default)
+  --streme-nmotifs    <num>  : maximum number of motifs to find; overrides --streme-evt;
+                               if =0, STREME will not be run
+  --streme-totallength <num> : Restrict the maximum total length of the sequences used by STREME;
+                               default: no limit 
+
+ 				***MEME SPECIFIC OPTIONS*** 
+  --meme-evt         <evt>   : MEME stops if motif E-value is greater than <evt>; 
+                               default: value specified for --evt (or its default)
+  --meme-nmotifs     <num>   : maximum number of motifs to find; overrides --meme-evt;
+                               if =0, MEME will not be run
+  --meme-searchsize  <size>  : MEME will sample primary sequence datasets over <size> letters
+  --meme-p           <np>    : use parallel version with <np> processors
+  --meme-brief       <num>   : reduce size of MEME output files if more than <num> primary sequences
+  --meme-mod [oops|zoops|anr]: The number of motif sites MEME will find per sequence; 
+                               default: zoops
+
+ 				***SEA SPECIFIC OPTIONS*** 
+  --sea-noseqs               : do not output the matching sequences TSV file (to save space);
+                               default: output the matching sequences TSV file
+
+ 				***FIMO SPECIFIC OPTIONS*** 
+  --fimo-skip                : don't run FIMO (to save time and space)
+

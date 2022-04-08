@@ -1,3 +1,4 @@
+from functools import partial
 import os
 import sys
 import pybedtools
@@ -9,13 +10,14 @@ import find_feature
 from collections import Counter
 
 class FindTU:
-    def __init__(self, forceBed = True, bam="", gff="", output="", prefix=""):
+    def __init__(self, forceBed = True, bam="", gff="", output="", prefix="", partial=1):
         if bam == "" or gff == "":
             self.__parse_args()
         else:
             forceBed=bool(forceBed)
             self.bam=bam
             self.gff=gff
+            self.partial=partial
             self.sample=os.path.basename(self.bam).strip(".bam")
             self.output=output
             output_prefix=os.path.join(self.output,self.sample) if prefix == "" else os.path.join(self.output, prefix)
@@ -23,6 +25,7 @@ class FindTU:
             tss_obj=find_feature.FindFeature(bam=self.bam, gff=self.gff,feature="TSS")
             self.all_reads = tss_obj.all_reads
             self.all_genes = tss_obj.all_genes
+            
             
         
     def __parse_args(self):
@@ -32,11 +35,13 @@ class FindTU:
         parser.add_argument( "-b",'--bam',metavar='',type=str,help='read alignment in bam format')
         parser.add_argument( "-a",'--gff',metavar='',type=str,help='gff annotation file for the reference genome (.gff)', default="")
         parser.add_argument( "-F",'--forcebed',metavar='',type=str,help='new bed file will always generate from bam in the same dir', default=True)
+        parser.add_argument( "-P",'--partialCov',metavar='',type=str,help='if partial coverage of a gene can be count as operon, default is 1 (deprecated)', default=1)
         args = parser.parse_args()
 
         forceBed=bool(args.forcebed)
         self.bam=args.bam
         self.gff=args.gff
+        self.partial=int(args.partialCov)
         self.sample=os.path.basename(self.bam).strip(".bam")
         self.output=args.output
         output_prefix=os.path.join(self.output,self.sample) if args.prefix == "" else os.path.join(self.output, args.prefix)
@@ -44,6 +49,7 @@ class FindTU:
         tss_obj=find_feature.FindFeature(bam=self.bam, gff=self.gff,feature="TSS")
         self.all_reads = tss_obj.all_reads
         self.all_genes = tss_obj.all_genes
+        
     # bam="/scratch/rx32940/minION/polyA_directRNA/map/genome/bam/Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA_rna_filtered.linear.bam"
     # gff="/scratch/rx32940/minION/polyA_cDNA/map/genome/reference/GCF_000007685.1_ASM768v1_genomic.gff"
     # output="/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/input/"
@@ -69,9 +75,9 @@ class FindTU:
                     i=0
                     while i < len(self.all_genes[chrom][strand]): # rotating through genes (read is stationary)
                         cur_gene = self.all_genes[chrom][strand][i]
-                        if cur_gene[1] < cur_operon_start: # genes end is before read start
+                        if (cur_gene[1] < cur_operon_start) or (cur_gene[0] < cur_operon_start): # genes starts or ends is before read start, no partial overlap
                             i += 1
-                        elif cur_gene[0]> cur_operon_end : # if gene start after read ends, then no more future gene will overlap with this read if gene list sorted
+                        elif (cur_gene[0] > cur_operon_end) or (cur_gene[1]> cur_operon_end): # if gene start after read ends, then no more future gene will overlap with this read if gene list sorted
                             cur_operon = (cur_operon_start, cur_operon_end, gene_in_operon, cur_operon_genes[1:])
                             i = len(self.all_genes[chrom][strand]) # stop looping through genes
                         else: # gene over lap with current read

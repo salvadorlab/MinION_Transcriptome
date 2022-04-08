@@ -8,9 +8,9 @@ out_path <- args[2]
 feature <- args[3] # tss or tts
 output_prefix <- ifelse(args[4] == "", "all_samples", args[4])
 
-# tu_path <- "/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss"
-# out_path <- "/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/direct_output/tss"
-# feature <- "TSS"
+tu_path <- "/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/cdna_output/tss/raw"
+out_path <- "/scratch/rx32940/minION/polyA_directRNA/TU_Annotation/cdna_output/tss/combined"
+feature <- "TSS"
 
 tabs <-list.files(tu_path, pattern=paste0(toupper(feature), ".merged.tab"), full.names = TRUE, recursive=TRUE)
 
@@ -28,7 +28,8 @@ raw_tss_dfs <- lapply(tabs, function(x){
     sample =="Q29_Copenhageni_Basecalled_May_22_2020_Direct-RNA_rna_filtered" ~ "Q29-dRNA-nonpolyA-R1",
     sample =="Q29_Copenhageni_Basecalled-June_11_2020_Repeat_Direct-RNA_rna_filtered" ~ "Q29-dRNA-nonpolyA-R2",
     sample =="Q36_Copenhageni_Basecalled_June_9_2020-Repeat_Direct-RNA_rna_filtered" ~ "Q36-dRNA-nonpolyA-R2",
-   sample =="Q36_Copenhageni_Basecalled_May_31_2020_Direct-RNA_rna_filtered" ~ "Q36-dRNA-nonpolyA-R1")
+   sample =="Q36_Copenhageni_Basecalled_May_31_2020_Direct-RNA_rna_filtered" ~ "Q36-dRNA-nonpolyA-R1",
+   TRUE ~ basename(short_file_name))
 )
   file
   })
